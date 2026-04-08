@@ -434,3 +434,33 @@ body {
 @media (max-width: 360px) {
   .attr-grid { grid-template-columns: 1fr; }
 }
+
+/* V2-F03 FB-01 */
+.recommend-card {
+  cursor: default;
+}
+
+.recommend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border, #eee);
+  cursor: pointer;
+}
+
+.recommend-item:last-child {
+  border-bottom: none;
+}
+
+.recommend-text {
+  font-size: 14px;
+  color: var(--text, #e2e8f0);
+  flex: 1;
+}
+
+.recommend-arrow {
+  font-size: 18px;
+  color: var(--text-dim, #aaa);
+  margin-left: 8px;
+}

@@ -1,5 +1,7 @@
 const BehaviorPage = {
   categories: null,
+  shortcuts: null, // V2-F01 FB-05 - Top5 常用行为
+  lastBehavior: null, // V2-F01 FB-05 - 最近一次行为，用于一键重复
   selectedCategory: null,
   selectedSubCategory: null,
   selectedBehavior: null,
@@ -7,9 +9,15 @@ const BehaviorPage = {
 
   async load() {
     try {
-      if (!this.categories) {
-        this.categories = await API.get('/behavior/categories');
-      }
+      // V2-F01 FB-05 - 并行加载 categories、shortcuts、lastBehavior
+      const [categories, shortcuts, lastBehavior] = await Promise.all([
+        this.categories ? Promise.resolve(this.categories) : API.get('/behavior/categories'),
+        API.get('/behavior/shortcuts'),
+        API.get('/behavior/last'),
+      ]);
+      this.categories = categories;
+      this.shortcuts = shortcuts;
+      this.lastBehavior = lastBehavior;
       this.render();
     } catch (e) {
       App.toast(e.message, 'error');
@@ -39,6 +47,8 @@ const BehaviorPage = {
 
     container.innerHTML = `
       <div class="page-header">行为上报</div>
+
+      ${this.renderShortcuts()}
 
       <div class="card">
         <div class="card-title">选择行为类型</div>
@@ -82,6 +92,33 @@ const BehaviorPage = {
     `;
 
     this.loadHistory();
+  },
+
+  // V2-F01 FB-05 - 渲染常用行为快捷入口卡片
+  renderShortcuts() {
+    const hasShortcuts = this.shortcuts && this.shortcuts.length > 0;
+    const hasLast = !!this.lastBehavior;
+    if (!hasShortcuts && !hasLast) return '';
+
+    const e = API.escapeHtml.bind(API);
+    return `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title">常用行为</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          ${hasShortcuts ? this.shortcuts.map((s, idx) => `
+          <button class="btn btn-small btn-secondary"
+            onclick="BehaviorPage.selectShortcut(${idx})">
+            ${e(s.sub_type)}
+          </button>
+        `).join('') : ''}
+        </div>
+        ${hasLast ? `
+        <button class="btn btn-small btn-secondary" onclick="BehaviorPage.repeatLast()">
+          🔁 重复上次：${e(this.lastBehavior.sub_type)}
+        </button>
+      ` : ''}
+      </div>
+    `;
   },
 
   renderInputForm() {
@@ -220,6 +257,84 @@ const BehaviorPage = {
     const behavior = list[index];
     if (!behavior) return;
     this.selectBehavior(behavior);
+  },
+
+  // V2-F01 FB-05 - 点击常用行为，直接跳到确认步骤
+  selectShortcut(index) {
+    const s = this.shortcuts[index];
+    if (!s) return;
+
+    // V2-F01 FB-05 - 设置 category
+    this.selectedCategory = s.category;
+    this.showCustomForm = false;
+
+    // V2-F01 FB-05 - 设置 sub_category（分组类行为）
+    if (s.sub_category) {
+      this.selectedSubCategory = s.sub_category;
+    } else if (this.isGroupedCategory(s.category)) {
+      // V2-F01 FB-05 - sub_category 为 null 但是分组类，降级选第一个子分类
+      const subs = Object.keys(this.categories[s.category] || {});
+      this.selectedSubCategory = subs[0] || null;
+    } else {
+      this.selectedSubCategory = null;
+    }
+
+    // V2-F01 FB-05 - 查找 behaviorDef
+    const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
+    const behavior = list.find(b => b.name === s.sub_type);
+    if (!behavior) {
+      App.toast('该行为已不存在，请手动选择', 'error');
+      this.selectedBehavior = null;
+      this.render();
+      return;
+    }
+
+    this.selectedBehavior = behavior;
+    this.render();
+  },
+
+  // V2-F01 FB-05 - 一键重复上次行为，预填充上次数值
+  repeatLast() {
+    const last = this.lastBehavior;
+    if (!last) return;
+
+    this.selectedCategory = last.category;
+    this.showCustomForm = false;
+
+    if (last.sub_category) {
+      this.selectedSubCategory = last.sub_category;
+    } else if (this.isGroupedCategory(last.category)) {
+      const subs = Object.keys(this.categories[last.category] || {});
+      this.selectedSubCategory = subs[0] || null;
+    } else {
+      this.selectedSubCategory = null;
+    }
+
+    const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
+    const behavior = list.find(b => b.name === last.sub_type);
+    if (!behavior) {
+      App.toast('该行为已不存在，请手动选择', 'error');
+      this.selectedBehavior = null;
+      this.render();
+      return;
+    }
+
+    this.selectedBehavior = behavior;
+    this.render();
+
+    // V2-F01 FB-05 - 预填充上次数值
+    if (last.duration) {
+      const el = document.getElementById('behavior-duration');
+      if (el) el.value = last.duration;
+    }
+    if (last.quantity) {
+      const el = document.getElementById('behavior-quantity');
+      if (el) el.value = last.quantity;
+    }
+    if (last.description) {
+      const el = document.getElementById('behavior-desc');
+      if (el) el.value = last.description;
+    }
   },
 
   async openAddCustom() {
@@ -379,6 +494,17 @@ const BehaviorPage = {
       };
       App.toast(`获得 ${item.name}（${item.quality}）+${item.temp_value}临时${attrNameMap[item.attribute_type] || item.attribute_type}`, 'success');
       this.selectedBehavior = null;
+
+      // V2-F01 FB-05 - 上报成功后刷新快捷入口数据
+      Promise.all([
+        API.get('/behavior/shortcuts'),
+        API.get('/behavior/last'),
+      ]).then(([shortcuts, lastBehavior]) => {
+        this.shortcuts = shortcuts;
+        this.lastBehavior = lastBehavior;
+        this.render();
+      }).catch(() => {});
+
       this.render();
     } catch (e) {
       App.toast(e.message, 'error');

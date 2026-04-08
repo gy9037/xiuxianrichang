@@ -198,16 +198,23 @@ router.post('/', (req, res) => {
       const yesterdayDate = new Date();
       yesterdayDate.setDate(yesterdayDate.getDate() - 1);
       const yesterday = formatLocalDate(yesterdayDate);
-      if (lastDate === today) {
-        return res.status(400).json({ error: '今天已经打卡过了' });
-      } else if (lastDate === yesterday) {
-        streakCount = streak.current_streak + 1;
-        db.prepare('UPDATE streaks SET current_streak = ?, last_date = ? WHERE id = ?')
-          .run(streakCount, today, streak.id);
+
+      // BUG-01 FB-用户反馈：打卡型行为每日限一次不合理
+      // 去掉每日一次的硬性限制，连击只在当天第一次打卡时更新
+      if (lastDate !== today) {
+        if (lastDate === yesterday) {
+          streakCount = streak.current_streak + 1;
+          db.prepare('UPDATE streaks SET current_streak = ?, last_date = ? WHERE id = ?')
+            .run(streakCount, today, streak.id);
+        } else {
+          streakCount = 1;
+          db.prepare('UPDATE streaks SET current_streak = 1, last_date = ? WHERE id = ?')
+            .run(today, streak.id);
+        }
       } else {
-        streakCount = 1;
-        db.prepare('UPDATE streaks SET current_streak = 1, last_date = ? WHERE id = ?')
-          .run(today, streak.id);
+        // BUG-01 FB-用户反馈：打卡型行为每日限一次不合理
+        // 今天已打卡过，连击数保持不变，streakCount 取当前值
+        streakCount = streak.current_streak;
       }
     } else {
       db.prepare('INSERT INTO streaks (user_id, category, sub_type, current_streak, last_date) VALUES (?, ?, ?, 1, ?)')
@@ -233,10 +240,11 @@ router.post('/', (req, res) => {
   if (!item) return res.status(500).json({ error: '道具生成失败' });
 
   // Insert behavior record
+  // V2-F01 FB-05 - 新增 sub_category 字段写入
   const behaviorResult = db.prepare(
-    `INSERT INTO behaviors (user_id, category, sub_type, description, quality_template, duration, quantity, quality, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-  ).run(req.user.id, category, sub_type, description || '', template, duration || null, quantity || null, quality);
+    `INSERT INTO behaviors (user_id, category, sub_category, sub_type, description, quality_template, duration, quantity, quality, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+  ).run(req.user.id, category, foundBehavior.subCategory || null, sub_type, description || '', template, duration || null, quantity || null, quality);
 
   const behaviorId = behaviorResult.lastInsertRowid;
 
@@ -259,6 +267,16 @@ router.post('/', (req, res) => {
   const activityField = ACTIVITY_FIELD_BY_ATTR[attrField];
   db.prepare(`UPDATE characters SET ${activityField} = datetime('now') WHERE user_id = ?`).run(req.user.id);
 
+  // V2-F01 FB-05 - 更新常用行为快捷入口频次
+  db.prepare(`
+    INSERT INTO user_behavior_shortcuts (user_id, category, sub_category, sub_type, use_count, last_used_at)
+    VALUES (?, ?, ?, ?, 1, datetime('now'))
+    ON CONFLICT(user_id, category, sub_type) DO UPDATE SET
+      use_count = use_count + 1,
+      sub_category = excluded.sub_category,
+      last_used_at = datetime('now')
+  `).run(req.user.id, category, foundBehavior.subCategory || null, sub_type);
+
   res.json({
     behavior: {
       id: behaviorId,
@@ -270,6 +288,30 @@ router.post('/', (req, res) => {
     },
     item: { id: itemId, name: item.name, quality: item.quality, attribute_type: item.attribute_type, temp_value: item.temp_value },
   });
+});
+
+// V2-F01 FB-05 - 获取用户 Top5 常用行为快捷入口
+router.get('/shortcuts', (req, res) => {
+  const shortcuts = db.prepare(`
+    SELECT category, sub_category, sub_type, use_count, last_used_at
+    FROM user_behavior_shortcuts
+    WHERE user_id = ?
+    ORDER BY use_count DESC, last_used_at DESC
+    LIMIT 5
+  `).all(req.user.id);
+  res.json(shortcuts);
+});
+
+// V2-F01 FB-05 - 获取用户最近一次上报行为，用于一键重复
+router.get('/last', (req, res) => {
+  const last = db.prepare(`
+    SELECT category, sub_category, sub_type, duration, quantity, description
+    FROM behaviors
+    WHERE user_id = ?
+    ORDER BY completed_at DESC
+    LIMIT 1
+  `).get(req.user.id);
+  res.json(last || null);
 });
 
 // GET /api/behavior/list — get behavior history

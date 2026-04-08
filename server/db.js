@@ -152,7 +152,27 @@ function initDB() {
       FOREIGN KEY (family_id) REFERENCES families(id),
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
+
+    -- V2-F01 FB-05
+    CREATE TABLE IF NOT EXISTS user_behavior_shortcuts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      category TEXT NOT NULL,
+      sub_category TEXT DEFAULT NULL,
+      sub_type TEXT NOT NULL,
+      use_count INTEGER DEFAULT 1,
+      last_used_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, category, sub_type),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
+
+  // V2-F01 FB-05 - 补充 behaviors.sub_category 字段（兼容已存在情况）
+  try {
+    db.exec(`ALTER TABLE behaviors ADD COLUMN sub_category TEXT DEFAULT NULL`);
+  } catch (e) {
+    // V2-F01 FB-05 - 列已存在，忽略
+  }
 
   // Seed default family if none exists
   const familyCount = db.prepare('SELECT COUNT(*) as count FROM families').get();
