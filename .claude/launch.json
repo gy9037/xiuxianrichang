@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "xiuxian-server",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["server/index.js"],
+      "port": 3000
+    }
+  ]
+}

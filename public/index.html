@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>修仙日常</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    /* Inline critical splash */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #0f0f1a;
+      z-index: -1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login Page -->
+  <div id="login-page" style="display:none"></div>
+
+  <!-- App Container -->
+  <div id="app-container" style="display:none">
+    <div id="page-home" class="page"></div>
+    <div id="page-behavior" class="page"></div>
+    <div id="page-inventory" class="page"></div>
+    <div id="page-wish" class="page"></div>
+    <div id="page-family" class="page"></div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottom-nav" id="bottom-nav" style="display:none">
+    <div class="nav-item" data-page="home">
+      <span class="nav-icon">🏠</span>角色
+    </div>
+    <div class="nav-item" data-page="behavior">
+      <span class="nav-icon">📝</span>行为
+    </div>
+    <div class="nav-item" data-page="inventory">
+      <span class="nav-icon">🎒</span>背包
+    </div>
+    <div class="nav-item" data-page="wish">
+      <span class="nav-icon">🌟</span>愿望
+    </div>
+    <div class="nav-item" data-page="family">
+      <span class="nav-icon">👨‍👩‍👧‍👦</span>家庭
+    </div>
+  </nav>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/pages/login.js"></script>
+  <script src="/js/pages/home.js"></script>
+  <script src="/js/pages/behavior.js"></script>
+  <script src="/js/pages/inventory.js"></script>
+  <script src="/js/pages/wish.js"></script>
+  <script src="/js/pages/family.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

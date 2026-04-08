@@ -1,0 +1,34 @@
+{
+  "low": [
+    { "name": "灰毛鼠妖", "description": "练气期低阶妖兽，喜欢偷食灵果，战力低下但行动敏捷" },
+    { "name": "赤眼野兔", "description": "变异灵兔，双目赤红，性情暴躁" },
+    { "name": "毒牙蛇妖", "description": "藏身草丛的低阶蛇妖，擅长偷袭" },
+    { "name": "铁壳甲虫", "description": "外壳坚硬的变异甲虫，防御力不错但攻击力有限" },
+    { "name": "风行蜥蜴", "description": "速度极快的小型蜥蜴，善于闪避" },
+    { "name": "幽灵萤火", "description": "散发诡异光芒的灵虫，会释放迷惑之光" },
+    { "name": "石皮蟾蜍", "description": "体型肥大的变异蟾蜍，皮糙肉厚" }
+  ],
+  "mid": [
+    { "name": "碧鳞蟒", "description": "筑基期中阶妖兽，身覆碧色鳞片，力大无穷" },
+    { "name": "烈焰狐", "description": "掌握火焰之力的狐妖，狡猾多变" },
+    { "name": "玄铁狼王", "description": "铁毛覆体的狼族首领，攻防兼备" },
+    { "name": "噬魂蝠", "description": "暗夜中的恐怖存在，擅长精神攻击" },
+    { "name": "雷纹豹", "description": "身带雷纹的猎豹，速度与力量兼具" },
+    { "name": "幽冥蜘蛛", "description": "善于布置陷阱的巨型蛛妖" },
+    { "name": "赤炎鹰", "description": "翱翔天际的火系飞禽，俯冲攻击威力巨大" }
+  ],
+  "high": [
+    { "name": "九幽蛟龙", "description": "拥有龙族血脉的蛟龙，翻江倒海之力" },
+    { "name": "万年玄龟", "description": "活了万年的老龟，龟壳几乎无法击破" },
+    { "name": "天狼妖帅", "description": "狼族最强战力，统领千军万马" },
+    { "name": "冰晶凤凰", "description": "凤凰后裔，掌控极寒之力" },
+    { "name": "血魔猿王", "description": "嗜血暴虐的猿族霸主，蛮力无双" },
+    { "name": "幽冥鬼蟒", "description": "来自幽冥界的巨蟒，带有死亡气息" }
+  ],
+  "ancient": [
+    { "name": "混沌饕餮", "description": "远古凶兽，吞天噬地，贪婪无度" },
+    { "name": "太古穷奇", "description": "上古四凶之一，不辨善恶，杀伐果断" },
+    { "name": "洪荒梼杌", "description": "远古凶兽，顽固不化，战力滔天" },
+    { "name": "上古应龙", "description": "有翼之龙，能兴云作雨，实力深不可测" }
+  ]
+}
