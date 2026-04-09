@@ -1,0 +1,29 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xiuxian-game
+    restart: unless-stopped
+    volumes:
+      - xiuxian-data:/data
+      - xiuxian-backup:/backup
+    environment:
+      - DB_PATH=/data/data.db
+      - NODE_ENV=production
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.xiuxian-game.rule=Host(`game.lifelab.rocks`)"
+      - "traefik.http.routers.xiuxian-game.entrypoints=websecure"
+      - "traefik.http.routers.xiuxian-game.tls.certresolver=letsencrypt"
+      - "traefik.http.services.xiuxian-game.loadbalancer.server.port=3000"
+    networks:
+      - dokploy-network
+
+volumes:
+  xiuxian-data:
+  xiuxian-backup:
+
+networks:
+  dokploy-network:
+    external: true
