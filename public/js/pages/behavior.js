@@ -6,6 +6,12 @@ const BehaviorPage = {
   selectedSubCategory: null,
   selectedBehavior: null,
   showCustomForm: false,
+  activeTab: 'report', // V2-F07 - 历史 tab 状态
+  historyData: null, // V2-F07 - { 'YYYY-MM-DD': [{...}] }
+  selectedDate: null, // V2-F07 - 当前选中日期字符串
+  weeklySummary: null, // V2-F07 - { behavior_count, item_count }
+  historyYear: null, // V2-F07 - 当前查看年份（null = 当前月）
+  historyMonth: null, // V2-F07 - 当前查看月份（null = 当前月）
 
   async load() {
     try {
@@ -39,13 +45,32 @@ const BehaviorPage = {
 
   render() {
     const container = document.getElementById('page-behavior');
-    const cats = Object.keys(this.categories || {});
     const e = API.escapeHtml.bind(API);
+
+    // V2-F07 - tab 切换：上报 | 历史
+    const tabBar = `
+      <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
+        <button class="btn btn-small ${this.activeTab === 'report' ? 'btn-primary' : 'btn-secondary'}"
+          style="border-radius:6px 0 0 0"
+          onclick="BehaviorPage.switchTab('report')">上报</button>
+        <button class="btn btn-small ${this.activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}"
+          style="border-radius:0 6px 0 0"
+          onclick="BehaviorPage.switchTab('history')">历史</button>
+      </div>
+    `;
+
+    if (this.activeTab === 'history') {
+      container.innerHTML = tabBar + this.renderHistory();
+      this.loadHistory(); // V2-F07 - 加载历史数据（含 weekly-summary）
+      return;
+    }
+
+    const cats = Object.keys(this.categories || {});
     const grouped = this.isGroupedCategory(this.selectedCategory);
     const subCategories = grouped ? Object.keys(this.categories[this.selectedCategory] || {}) : [];
     const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
 
-    container.innerHTML = `
+    container.innerHTML = tabBar + `
       <div class="page-header">行为上报</div>
 
       ${this.renderShortcuts()}
@@ -91,7 +116,103 @@ const BehaviorPage = {
       </div>
     `;
 
-    this.loadHistory();
+    this.loadRecentHistory(); // V2-F07 - report tab 保持最近记录加载
+  },
+
+  // V2-F07 - 渲染历史 tab（本周汇总 + 月历 + 日期详情）
+  renderHistory() {
+    const e = API.escapeHtml.bind(API);
+    const now = new Date();
+    const year = this.historyYear ?? now.getFullYear();
+    const month = this.historyMonth ?? (now.getMonth() + 1);
+    const data = this.historyData ?? {};
+    const summary = this.weeklySummary;
+
+    const summaryCard = summary ? `
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-title">本周汇总</div>
+        <div style="display:flex;gap:24px;font-size:14px">
+          <span>行为 <strong>${summary.behavior_count}</strong> 次</span>
+          <span>道具 <strong>${summary.item_count}</strong> 件</span>
+        </div>
+      </div>
+    ` : '<div class="card" style="margin-bottom:12px"><div class="item-meta">加载中…</div></div>';
+
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+
+    const calHeader = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <button class="btn btn-small btn-secondary"
+          onclick="BehaviorPage.navMonth(${prevYear},${prevMonth})">‹</button>
+        <span style="font-weight:600">${year} 年 ${month} 月</span>
+        <button class="btn btn-small btn-secondary"
+          onclick="BehaviorPage.navMonth(${nextYear},${nextMonth})">›</button>
+      </div>
+    `;
+
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const weekLabels = ['日', '一', '二', '三', '四', '五', '六']
+      .map(d => `<div style="text-align:center;font-size:11px;color:var(--text-dim)">${d}</div>`)
+      .join('');
+
+    let cells = '';
+    for (let i = 0; i < firstDay; i++) cells += '<div></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const hasBehavior = !!data[dateStr];
+      const isSelected = this.selectedDate === dateStr;
+      cells += `
+        <div onclick="BehaviorPage.selectDate('${dateStr}')"
+          style="text-align:center;padding:6px 2px;border-radius:6px;cursor:pointer;font-size:13px;
+                 background:${isSelected ? 'var(--primary)' : hasBehavior ? 'var(--primary-dim, #e8f4ff)' : 'transparent'};
+                 color:${isSelected ? '#fff' : 'inherit'};
+                 font-weight:${hasBehavior ? '600' : '400'}">
+          ${d}
+        </div>`;
+    }
+
+    const calGrid = `
+      <div class="card" style="margin-bottom:12px">
+        ${calHeader}
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+          ${weekLabels}
+          ${cells}
+        </div>
+      </div>
+    `;
+
+    let dateDetail = '';
+    if (this.selectedDate && data[this.selectedDate]) {
+      const rows = data[this.selectedDate];
+      dateDetail = `
+        <div class="card">
+          <div class="card-title">${this.selectedDate} 的行为记录</div>
+          ${rows.map(b => `
+            <div class="item-row">
+              <div class="item-info">
+                <div class="item-name">${e(b.sub_type)}</div>
+                <div class="item-meta">
+                  ${(() => {
+                    const q = ['凡品', '良品', '上品', '极品'].includes(b.quality) ? b.quality : '凡品';
+                    return `<span class="quality-${q}">${e(b.quality)}</span>`;
+                  })()}
+                  ${b.item_name ? `· ${e(b.item_name)}` : ''}
+                </div>
+              </div>
+              <div class="item-meta">${new Date(b.completed_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (this.selectedDate) {
+      dateDetail = '<div class="card"><div class="empty-state">当天没有行为记录</div></div>';
+    }
+
+    return summaryCard + calGrid + dateDetail;
   },
 
   // V2-F01 FB-05 - 渲染常用行为快捷入口卡片
@@ -208,6 +329,12 @@ const BehaviorPage = {
         </div>
       </div>
     `;
+  },
+
+  // V2-F07 - 切换 tab
+  switchTab(tab) {
+    this.activeTab = tab;
+    this.render();
   },
 
   selectCategory(category) {
@@ -511,7 +638,64 @@ const BehaviorPage = {
     }
   },
 
+  // V2-F07 - 加载历史 tab 数据（月历 + 本周汇总）
   async loadHistory() {
+    const now = new Date();
+    const year = this.historyYear ?? now.getFullYear();
+    const month = this.historyMonth ?? (now.getMonth() + 1);
+
+    try {
+      const [grouped, summary] = await Promise.all([
+        API.get(`/behavior/history?year=${year}&month=${String(month).padStart(2, '0')}`),
+        this.weeklySummary ? Promise.resolve(this.weeklySummary) : API.get('/behavior/weekly-summary'),
+      ]);
+      this.historyData = grouped;
+      this.weeklySummary = summary;
+      this.historyYear = year;
+      this.historyMonth = month;
+
+      const el = document.getElementById('page-behavior');
+      if (el && this.activeTab === 'history') {
+        el.innerHTML = `
+          <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
+            <button class="btn btn-small btn-secondary" style="border-radius:6px 0 0 0"
+              onclick="BehaviorPage.switchTab('report')">上报</button>
+            <button class="btn btn-small btn-primary" style="border-radius:0 6px 0 0"
+              onclick="BehaviorPage.switchTab('history')">历史</button>
+          </div>
+        ` + this.renderHistory();
+      }
+    } catch (err) {
+      App.toast(err.message, 'error');
+    }
+  },
+
+  // V2-F07 - 选中日期，展示当天行为列表
+  selectDate(dateStr) {
+    this.selectedDate = this.selectedDate === dateStr ? null : dateStr;
+    const el = document.getElementById('page-behavior');
+    if (el) {
+      el.innerHTML = `
+        <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
+          <button class="btn btn-small btn-secondary" style="border-radius:6px 0 0 0"
+            onclick="BehaviorPage.switchTab('report')">上报</button>
+          <button class="btn btn-small btn-primary" style="border-radius:0 6px 0 0"
+            onclick="BehaviorPage.switchTab('history')">历史</button>
+        </div>
+      ` + this.renderHistory();
+    }
+  },
+
+  // V2-F07 - 切换月份
+  navMonth(year, month) {
+    this.historyYear = year;
+    this.historyMonth = month;
+    this.historyData = null;
+    this.selectedDate = null;
+    this.render();
+  },
+
+  async loadRecentHistory() {
     try {
       const e = API.escapeHtml.bind(API);
       const list = await API.get('/behavior/list');

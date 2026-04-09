@@ -73,8 +73,13 @@ router.get('/', (req, res) => {
   ).get(req.user.id);
   if (!character) return res.status(404).json({ error: '角色不存在' });
 
+  // V2-F04 FB-03 - 获取用户状态传入衰退计算
+  const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
+  // V2-F04 FB-03
+  const userStatus = userRow?.status || '正常';
+
   // Apply decay
-  const { updates, hasDecay } = calculateDecay(character);
+  const { updates, hasDecay } = calculateDecay(character, new Date(), userStatus); // V2-F04 FB-03
   if (hasDecay) {
     const safeEntries = Object.entries(updates).filter(([k]) => SAFE_ATTR_FIELD_SET.has(k));
     if (safeEntries.length > 0) {
@@ -87,7 +92,7 @@ router.get('/', (req, res) => {
 
   const realm = getRealmByName(character.realm_stage);
   const promotion = checkPromotion(character);
-  const decayStatus = getDecayStatus(character);
+  const decayStatus = getDecayStatus(character, new Date(), userStatus); // V2-F04 FB-03
   const tags = parseTags(character.tags);
   const trend = getRecentTrend(req.user.id);
 
@@ -102,6 +107,7 @@ router.get('/', (req, res) => {
       realm_stage: character.realm_stage,
       attr_cap: realm ? realm.attrCap : 3,
       total_attrs: getTotalAttrs(character),
+      status: userStatus, // V2-F04 FB-03 - 返回用户状态
     },
     tags,
     trend,
@@ -141,6 +147,17 @@ router.put('/tags', (req, res) => {
 // GET /api/character/trend — get recent 7-day trend
 router.get('/trend', (req, res) => {
   res.json(getRecentTrend(req.user.id));
+});
+
+// V2-F04 FB-03 - 切换用户状态
+router.post('/status', (req, res) => {
+  const { status } = req.body;
+  const VALID_STATUSES = ['正常', '生病', '出差', '休假'];
+  if (!VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: '无效的状态，可选：正常/生病/出差/休假' });
+  }
+  db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, req.user.id);
+  res.json({ success: true, status });
 });
 
 // POST /api/character/promote — attempt realm promotion

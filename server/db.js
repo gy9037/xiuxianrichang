@@ -174,6 +174,27 @@ function initDB() {
     // V2-F01 FB-05 - 列已存在，忽略
   }
 
+  // V2-F04 FB-03 - 用户状态字段（正常/生病/出差/休假）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT '正常'`);
+  } catch (e) {
+    // V2-F04 FB-03 - 列已存在，忽略
+  }
+
+  // V2-F06 FB-06 — 行为表情互动表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS behavior_reactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      behavior_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      emoji TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(behavior_id, user_id, emoji),
+      FOREIGN KEY (behavior_id) REFERENCES behaviors(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
   // Seed default family if none exists
   const familyCount = db.prepare('SELECT COUNT(*) as count FROM families').get();
   if (familyCount.count === 0) {

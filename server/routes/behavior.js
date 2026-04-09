@@ -324,6 +324,53 @@ router.get('/list', (req, res) => {
   res.json(behaviors);
 });
 
+// V2-F07 - 按月查询行为历史，按日期分组
+router.get('/history', (req, res) => {
+  const { year, month } = req.query;
+  if (!year || !month) return res.status(400).json({ error: '缺少 year 或 month 参数' });
+
+  const mm = String(month).padStart(2, '0');
+  const rows = db.prepare(
+    `SELECT b.*, i.name as item_name, date(b.completed_at, 'localtime') as local_date
+     FROM behaviors b
+     LEFT JOIN items i ON i.id = b.item_id
+     WHERE b.user_id = ?
+       AND strftime('%Y', b.completed_at, 'localtime') = ?
+       AND strftime('%m', b.completed_at, 'localtime') = ?
+     ORDER BY b.completed_at DESC`
+  ).all(req.user.id, String(year), mm);
+
+  const grouped = {};
+  for (const row of rows) {
+    const dateKey = row.local_date;
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push({
+      id: row.id,
+      sub_type: row.sub_type,
+      quality: row.quality,
+      item_name: row.item_name,
+      completed_at: row.completed_at,
+    });
+  }
+
+  res.json(grouped);
+});
+
+// V2-F07 - 本周行为数和道具数汇总
+router.get('/weekly-summary', (req, res) => {
+  const rows = db.prepare(
+    `SELECT b.id, b.item_id
+     FROM behaviors b
+     WHERE b.user_id = ?
+       AND b.completed_at >= datetime('now', 'localtime', 'weekday 0', '-7 days')`
+  ).all(req.user.id);
+
+  const behavior_count = rows.length;
+  const item_count = rows.filter(r => r.item_id !== null).length;
+
+  res.json({ behavior_count, item_count });
+});
+
 // GET /api/behavior/family — get family behavior feed
 router.get('/family', (req, res) => {
   const feed = db.prepare(

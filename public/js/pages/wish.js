@@ -14,6 +14,8 @@ const WishPage = {
   preparedBoss: null,
   battleItems: [],
   battleSelectedIds: new Set(),
+  battleResult: null, // V2-F05 FB-04
+  character: null, // V2-F05 FB-04
   typeFilter: '全部',
   statusFilter: '全部',
 
@@ -24,6 +26,35 @@ const WishPage = {
     } catch (e) {
       App.toast(e.message, 'error');
     }
+  },
+
+  // V2-F05 FB-04 - 计算胜算文案
+  getOddsText(userPower, bossPower) {
+    if (!bossPower || bossPower <= 0) return { text: '胜算未知', color: 'var(--text-dim)' };
+    const ratio = userPower / bossPower;
+    if (ratio >= 0.9) return { text: '胜算十成', color: 'var(--green)' };
+    if (ratio >= 0.7) return { text: '胜算七成', color: 'var(--green)' };
+    if (ratio >= 0.5) return { text: '胜算五成', color: 'var(--gold)' };
+    if (ratio >= 0.3) return { text: '胜算三成', color: 'var(--gold)' };
+    return { text: '胜算渺茫', color: 'var(--red)' };
+  },
+
+  // V2-F05 FB-04 - 失败后差距分析和提升建议
+  getDefeatAdvice(battle) {
+    const ATTR_MAP = {
+      physique: { name: '体魄', category: '身体健康', advice: '多做运动类行为' },
+      comprehension: { name: '悟性', category: '学习', advice: '多做学习类行为' },
+      willpower: { name: '心性', category: '生活习惯', advice: '多做生活习惯类行为' },
+      dexterity: { name: '灵巧', category: '家务', advice: '多做家务类行为' },
+      perception: { name: '神识', category: '社交互助', advice: '多做社交互助类行为' },
+    };
+    const boss = battle.boss;
+    if (!boss) return '继续积累道具，再来挑战！';
+
+    const attrs = ['physique', 'comprehension', 'willpower', 'dexterity', 'perception'];
+    const strongest = attrs.reduce((max, a) => (boss[a] > boss[max] ? a : max), attrs[0]);
+    const info = ATTR_MAP[strongest];
+    return `${info.name}方向差距最大，建议${info.advice}来提升战力。`;
   },
 
   render() {
@@ -247,12 +278,14 @@ const WishPage = {
     this.renderBattle(document.getElementById('page-wish'));
 
     try {
-      const [itemData, prepared] = await Promise.all([
+      const [itemData, prepared, characterData] = await Promise.all([
         API.get('/items'),
         API.post('/battle/prepare', { wish_id: wishId }),
+        this.character ? Promise.resolve({ character: this.character }) : API.get('/character'),
       ]);
       this.battleItems = itemData.items;
       this.preparedBoss = prepared.boss;
+      this.character = characterData?.character || this.character; // V2-F05 FB-04
       this.renderBattle(document.getElementById('page-wish'));
     } catch (e) {
       this.showBattle = false;
@@ -298,6 +331,12 @@ const WishPage = {
           <div class="card-title">${e(boss.name)}</div>
           <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px">${e(boss.description)}</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:10px">总战力：${boss.total_power}</div>
+          ${(() => {
+            const userPower = (this.character?.physique || 0) + (this.character?.comprehension || 0) +
+              (this.character?.willpower || 0) + (this.character?.dexterity || 0) + (this.character?.perception || 0);
+            const odds = WishPage.getOddsText(userPower, this.preparedBoss?.total_power);
+            return `<div style="font-size:16px;font-weight:700;color:${odds.color};margin-top:8px">${odds.text}</div>`;
+          })()} <!-- V2-F05 FB-04 - 胜算展示 -->
           ${Object.entries(WISH_ATTR_NAMES).map(([key, label]) => {
             const val = Number(boss[key] || 0);
             const pct = Math.round((val / bossMaxAttr) * 100);
@@ -376,6 +415,7 @@ const WishPage = {
   },
 
   showBattleResult(data) {
+    this.battleResult = data; // V2-F05 FB-04
     const container = document.getElementById('page-wish');
     const { boss, result } = data;
     const rounds = result.rounds;
@@ -429,15 +469,19 @@ const WishPage = {
 
       ${result.result === 'win' ? `
         <div class="card" style="border-color:var(--gold)">
-          <div style="text-align:center;font-size:16px;font-weight:600;color:var(--gold)">
+          <div style="color:var(--gold);font-size:24px;font-weight:800;text-align:center">🎉 斩妖除魔！</div>
+          <div style="color:var(--gold);font-size:14px;text-align:center;margin-top:4px">愿望达成，现实奖励等你兑现</div>
+          <div style="text-align:center;font-size:16px;font-weight:600;color:var(--gold);margin-top:8px">
             🎁 ${e(this.selectedWish.reward_description)}
-          </div>
+          </div> <!-- V2-F05 FB-04 - 胜利仪式感 -->
         </div>
       ` : `
         <div class="card">
-          <div style="text-align:center;font-size:13px;color:var(--text-dim)">
-            继续修炼，积蓄力量再来挑战！
+          <div style="color:var(--red);font-size:16px;font-weight:700">⚔️ 败北</div>
+          <div style="margin-top:8px;font-size:13px;color:var(--text-dim)">
+            ${e(WishPage.getDefeatAdvice(this.battleResult))}
           </div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:4px">道具已消耗，积累后可再次挑战</div> <!-- V2-F05 FB-04 - 失败后差距分析 -->
         </div>
       `}
 

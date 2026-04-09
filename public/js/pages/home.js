@@ -148,7 +148,14 @@ const HomePage = {
       : '';
 
     container.innerHTML = `
-      <div class="page-header">${e(API.user.name)}</div>
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
+        <span>${e(API.user.name)}</span>
+        <span class="status-badge status-${e(character.status || '正常')}"
+          onclick="HomePage.showStatusPicker()"
+          style="cursor:pointer;font-size:12px;padding:4px 10px;border-radius:12px;background:var(--bg-card-light)">
+          ${e(character.status || '正常')} ▾
+        </span>
+      </div> <!-- V2-F04 FB-03 - 顶部展示用户名 + 状态badge -->
 
       <div class="card">
         <div class="realm-progress-line">
@@ -191,6 +198,53 @@ const HomePage = {
         <span style="font-size:12px;color:var(--text-dim);cursor:pointer" onclick="HomePage.logout()">退出登录</span>
       </div>
     `;
+  },
+
+  // V2-F04 FB-03 - 状态切换弹窗
+  showStatusPicker() {
+    const existing = document.getElementById('status-picker-modal');
+    if (existing) existing.remove();
+
+    const STATUS_CONFIG = {
+      正常: { icon: '✨', desc: '日常修炼，正常计算衰退' },
+      生病: { icon: '🤒', desc: '身体欠佳，衰退缓冲延长至30天' },
+      出差: { icon: '✈️', desc: '外出奔波，衰退缓冲延长至30天' },
+      休假: { icon: '🏖️', desc: '休养生息，衰退缓冲延长至30天' },
+    }; // V2-F04 FB-03
+
+    const modal = document.createElement('div');
+    modal.id = 'status-picker-modal';
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px';
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:var(--radius);padding:24px;max-width:320px;width:100%">
+        <div style="font-size:16px;font-weight:700;margin-bottom:16px">切换状态</div>
+        ${Object.entries(STATUS_CONFIG).map(([s, cfg]) => `
+          <div onclick="HomePage.setStatus('${s}')"
+            style="padding:12px;border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--bg-card-light);display:flex;align-items:center;gap:12px">
+            <span style="font-size:24px">${cfg.icon}</span>
+            <div>
+              <div style="font-weight:600">${s}</div>
+              <div style="font-size:12px;color:var(--text-dim)">${cfg.desc}</div>
+            </div>
+          </div>
+        `).join('')}
+        <button class="btn btn-secondary" style="width:100%;margin-top:8px"
+          onclick="document.getElementById('status-picker-modal').remove()">取消</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  },
+
+  // V2-F04 FB-03 - 提交状态切换
+  async setStatus(status) {
+    try {
+      await API.post('/character/status', { status });
+      document.getElementById('status-picker-modal')?.remove();
+      App.toast(`状态已切换为：${status}`, 'success');
+      this.load();
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
   },
 
   async promote() {

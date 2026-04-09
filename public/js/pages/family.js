@@ -57,6 +57,23 @@ const FamilyPage = {
                 ${f.item_name ? `→ 获得 ${e(f.item_name)}` : ''}
               </div>
               <div class="feed-time">${new Date(f.completed_at).toLocaleString()}</div>
+              ${`<div class="feed-reactions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+                ${[
+    { emoji: '👍', label: '灵气充沛' },
+    { emoji: '💪', label: '体魄精进' },
+    { emoji: '📖', label: '悟性大增' },
+    { emoji: '✨', label: '道心坚定' },
+  ].map(({ emoji, label }) => {
+    const reacted = (f.myReactions || []).includes(emoji);
+    const count = ((f.reactions || []).find(r => r.emoji === emoji) || {}).count || 0;
+    const highlight = reacted ? 'border:1px solid var(--primary);' : 'border:1px solid var(--border);';
+    return `<button
+      onclick="FamilyPage.react(${f.id}, '${emoji}')"
+      style="background:none;border-radius:20px;padding:2px 10px;cursor:pointer;font-size:13px;${highlight}"
+      title="${e(label)}"
+    >${emoji}${count > 0 ? ` ${count}` : ''}</button>`;
+  }).join('')}
+              </div>`} <!-- V2-F06 FB-06 — 表情按钮组 -->
             </div>
           </div>
         `).join('')}
@@ -76,5 +93,15 @@ const FamilyPage = {
         `).join('')}
       </div>
     `;
+  },
+
+  // V2-F06 FB-06 — 发送表情互动
+  async react(behaviorId, emoji) {
+    try {
+      await API.post('/family/react', { behavior_id: behaviorId, emoji });
+      await this.load();
+    } catch (e) {
+      App.toast(e.message, 'error');
+    }
   },
 };
