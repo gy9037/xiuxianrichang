@@ -6,13 +6,29 @@ const ATTR_ICONS = {
   physique: '💪', comprehension: '📖', willpower: '🧘',
   dexterity: '🔧', perception: '👁',
 };
+// V2-F09 FB-07 - 境界通俗解释映射
+const REALM_DESC = {
+  练气一阶: '初入修仙', 练气二阶: '感知灵气', 练气三阶: '引气入体',
+  练气四阶: '气感稳固', 练气五阶: '小有所成', 练气六阶: '灵气充盈',
+  练气七阶: '道心初现', 练气八阶: '根基深厚', 练气九阶: '蓄势待发', 练气十阶: '练气圆满',
+  筑基一阶: '筑基初成', 筑基二阶: '根基稳固', 筑基三阶: '道基渐成',
+  筑基四阶: '灵台清明', 筑基五阶: '筑基中期', 筑基六阶: '道心坚定',
+  筑基七阶: '根基浑厚', 筑基八阶: '筑基后期', 筑基九阶: '蜕变在即', 筑基十阶: '筑基圆满',
+};
 
 const HomePage = {
   data: null,
+  achievements: [], // V2-F10
 
   async load() {
     try {
-      this.data = await API.get('/character');
+      const [characterData, achievementsData] = await Promise.all([
+        API.get('/character'),
+        API.get('/character/achievements').catch(() => []), // V2-F10 - 成就接口失败时不阻塞首页
+      ]);
+      this.data = characterData;
+      this.achievements = Array.isArray(achievementsData) ? achievementsData : [];
+      this.toastNewAchievements(this.achievements); // V2-F10 - 首次解锁提示
       this.render();
     } catch (e) {
       App.toast(e.message, 'error');
@@ -115,6 +131,122 @@ const HomePage = {
     }
   },
 
+  // V2-F10 - 新解锁成就 toast 提示（sessionStorage 去重）
+  toastNewAchievements(achievements) {
+    if (!Array.isArray(achievements) || achievements.length === 0) return;
+    const toastedKey = 'v2f10_toasted';
+    let toasted = [];
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(toastedKey) || '[]');
+      toasted = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      toasted = [];
+    }
+
+    const newlyUnlocked = achievements.filter(a => a.unlocked && !toasted.includes(a.id));
+    newlyUnlocked.forEach((a) => {
+      App.toast(`成就解锁：${a.icon} ${a.name}`, 'success');
+      toasted.push(a.id);
+    });
+    sessionStorage.setItem(toastedKey, JSON.stringify(toasted));
+  },
+
+  // V2-F10 - 成就卡片渲染
+  renderAchievements() {
+    const e = API.escapeHtml.bind(API);
+    if (!Array.isArray(this.achievements) || this.achievements.length === 0) {
+      return '';
+    }
+
+    return `
+      <div class="card"> <!-- V2-F10 -->
+        <div class="card-title">成就</div>
+        <div id="achievements-container">
+          ${this.achievements.map(a => `
+            <div class="achievement-item ${a.unlocked ? 'unlocked' : 'locked'}">
+              <span class="achievement-icon">${e(a.icon)}</span>
+              <div class="achievement-main">
+                <div class="achievement-name">${e(a.name)}</div>
+                <div class="achievement-desc">${e(a.desc)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  },
+
+  // V2-F08 FB-08
+  renderRadar(character) {
+    // V2-F08 FB-08 - 五维顺序（顶点从正上方顺时针排列）
+    const DIMS = [
+      { key: 'physique', label: '体魄' },
+      { key: 'comprehension', label: '悟性' },
+      { key: 'willpower', label: '心性' },
+      { key: 'dexterity', label: '灵巧' },
+      { key: 'perception', label: '神识' },
+    ]; // V2-F08 FB-08
+
+    const SIZE = 200; // V2-F08 FB-08 - SVG 画布尺寸
+    const CX = SIZE / 2; // V2-F08 FB-08 - 中心 X
+    const CY = SIZE / 2; // V2-F08 FB-08 - 中心 Y
+    const R = 72; // V2-F08 FB-08 - 最大半径（留出标签空间）
+    const LABEL_R = R + 16; // V2-F08 FB-08 - 标签距中心距离
+    const N = DIMS.length; // V2-F08 FB-08 - 维度数 = 5
+    const cap = Number(character.attr_cap) || 1; // V2-F08 FB-08 - 防除零
+
+    // V2-F08 FB-08 - 计算第 i 个顶点的角度（从正上方 -90° 开始，顺时针）
+    const angle = i => (Math.PI * 2 * i) / N - Math.PI / 2; // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 极坐标 → 直角坐标
+    const pt = (r, i) => ({
+      x: CX + r * Math.cos(angle(i)),
+      y: CY + r * Math.sin(angle(i)),
+    }); // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 将点数组转为 SVG points 字符串
+    const toPoints = pts => pts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '); // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 背景网格：3 层五边形（25% / 50% / 100%）
+    const gridLevels = [0.25, 0.5, 1.0]; // V2-F08 FB-08
+    const gridPolygons = gridLevels.map((level) => {
+      const pts = DIMS.map((_, i) => pt(R * level, i)); // V2-F08 FB-08
+      return `<polygon points="${toPoints(pts)}" fill="none" stroke="var(--border)" stroke-width="1"/>`; // V2-F08 FB-08
+    }).join('\n      '); // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 背景轴线：中心 → 各顶点
+    const axisLines = DIMS.map((_, i) => {
+      const tip = pt(R, i); // V2-F08 FB-08
+      return `<line x1="${CX}" y1="${CY}" x2="${tip.x.toFixed(2)}" y2="${tip.y.toFixed(2)}" stroke="var(--border)" stroke-width="1"/>`; // V2-F08 FB-08
+    }).join('\n      '); // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 数据多边形：归一化值 = min(当前值 / attr_cap, 1)
+    const dataPts = DIMS.map((d, i) => {
+      const ratio = Math.min(Number(character[d.key] || 0) / cap, 1); // V2-F08 FB-08
+      return pt(R * ratio, i); // V2-F08 FB-08
+    }); // V2-F08 FB-08
+    const dataPolygon = `<polygon points="${toPoints(dataPts)}" fill="rgba(139,92,246,0.3)" stroke="var(--primary)" stroke-width="2"/>`; // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 顶点标签
+    const labels = DIMS.map((d, i) => {
+      const lp = pt(LABEL_R, i); // V2-F08 FB-08
+      const cos = Math.cos(angle(i));
+      const anchor = cos < -0.1 ? 'end' : cos > 0.1 ? 'start' : 'middle'; // V2-F08 FB-08
+      return `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" font-size="11" fill="var(--text-dim)">${d.label}</text>`; // V2-F08 FB-08
+    }).join('\n      '); // V2-F08 FB-08
+
+    // V2-F08 FB-08 - 拼装完整 SVG
+    return `
+      <svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}"
+        style="display:block;margin:0 auto 12px;overflow:visible">
+        ${gridPolygons}
+        ${axisLines}
+        ${dataPolygon}
+        ${labels}
+      </svg>
+    `; // V2-F08 FB-08
+  },
+
   render() {
     const { character, promotion, decayStatus } = this.data;
     const attrs = ['physique', 'comprehension', 'willpower', 'dexterity', 'perception'];
@@ -127,6 +259,9 @@ const HomePage = {
     const nextRealm = progress.nextRealm || promotion.nextRealm || '';
     const nextRealmShort = nextRealm ? String(nextRealm).replace(/^练气|^筑基/, '') : '';
     const currentTotalText = Number.isInteger(currentTotal) ? String(currentTotal) : currentTotal.toFixed(1);
+    // V2-F09 FB-07 - 展示格式：练气一阶（初入修仙）
+    const realmDesc = REALM_DESC[character.realm_stage];
+    const realmStageText = `${e(character.realm_stage)}${realmDesc ? `（${e(realmDesc)}）` : ''}`;
 
     let decayHtml = '';
     const warnings = decayStatus.filter(d => d.status !== '正常');
@@ -161,10 +296,10 @@ const HomePage = {
         <div class="realm-progress-line">
           ${promotion.canPromote ? `
             <button class="realm-badge realm-badge-action promotable" onclick="HomePage.promote()">
-              ${e(character.realm_stage)}
+              ${realmStageText}
             </button>
           ` : `
-            <span class="realm-badge">${e(character.realm_stage)}</span>
+            <span class="realm-badge">${realmStageText}</span>
           `}
           <span class="realm-progress-text">${realmProgressText}</span>
         </div>
@@ -173,6 +308,7 @@ const HomePage = {
 
       <div class="card">
         <div class="card-title">属性总览</div>
+        ${this.renderRadar(character)} <!-- V2-F08 FB-08 -->
         <div class="attr-list">
           ${attrs.map(a => {
             const val = character[a];
@@ -191,6 +327,7 @@ const HomePage = {
       </div>
 
       ${this.renderRecommendations(character)} <!-- V2-F03 FB-01 -->
+      ${this.renderAchievements()} <!-- V2-F10 -->
 
       ${decayHtml ? `<div class="card"><div class="card-title">衰退预警</div>${decayHtml}</div>` : ''}
 

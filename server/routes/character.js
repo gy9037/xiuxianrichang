@@ -7,6 +7,15 @@ const { calculateDecay, getDecayStatus } = require('../services/decay');
 const router = express.Router();
 router.use(authMiddleware);
 const ATTR_FIELDS = ['physique', 'comprehension', 'willpower', 'dexterity', 'perception'];
+// V2-F10 — 成就定义（硬编码，无需数据库表）
+const ACHIEVEMENTS = [
+  { id: 'first_behavior', name: '初入修仙', desc: '完成第一次行为上报', icon: '🌱' },
+  { id: 'first_boss_win', name: '斩妖除魔', desc: '第一次打赢Boss', icon: '⚔️' },
+  { id: 'streak_7', name: '七日不辍', desc: '任意行为连续打卡7天', icon: '🔥' },
+  { id: 'attr_10', name: '小有所成', desc: '任意属性达到10点', icon: '💫' },
+  { id: 'realm_up', name: '境界突破', desc: '完成第一次境界突破', icon: '🌟' },
+  { id: 'items_50', name: '道具收藏家', desc: '累计获得50个道具', icon: '🎒' },
+];
 const TAG_PRESETS = ['慢性病', '发育期', '熬夜习惯', '久坐', '学业压力'];
 const SAFE_ATTR_FIELD_SET = new Set(ATTR_FIELDS);
 
@@ -172,6 +181,48 @@ router.post('/promote', (req, res) => {
 
   db.prepare('UPDATE characters SET realm_stage = ? WHERE id = ?').run(result.nextRealm, character.id);
   res.json({ success: true, newRealm: result.nextRealm, message: `恭喜突破至${result.nextRealm}！` });
+});
+
+// V2-F10 — GET /api/character/achievements
+router.get('/achievements', (req, res) => {
+  const userId = req.user.id;
+
+  const behaviorCount = db.prepare(
+    'SELECT COUNT(*) AS cnt FROM behaviors WHERE user_id = ?'
+  ).get(userId).cnt;
+
+  const bossWinCount = db.prepare(
+    "SELECT COUNT(*) AS cnt FROM battles WHERE user_id = ? AND result = 'win'"
+  ).get(userId).cnt;
+
+  const maxStreak = db.prepare(
+    'SELECT MAX(current_streak) AS ms FROM streaks WHERE user_id = ?'
+  ).get(userId).ms || 0;
+
+  const character = db.prepare(
+    'SELECT physique, comprehension, willpower, dexterity, perception, realm_stage FROM characters WHERE user_id = ?'
+  ).get(userId);
+
+  const itemCount = db.prepare(
+    'SELECT COUNT(*) AS cnt FROM items WHERE user_id = ?'
+  ).get(userId).cnt;
+
+  const unlockMap = {
+    first_behavior: behaviorCount > 0,
+    first_boss_win: bossWinCount > 0,
+    streak_7: maxStreak >= 7,
+    attr_10: character ? ATTR_FIELDS.some(f => (character[f] || 0) >= 10) : false,
+    realm_up: character ? character.realm_stage !== '练气一阶' : false,
+    items_50: itemCount >= 50,
+  };
+
+  const result = ACHIEVEMENTS.map(a => ({
+    ...a,
+    unlocked: unlockMap[a.id] ?? false,
+    unlockedAt: null, // V2-F10 - 无时间戳表，暂返回 null
+  }));
+
+  res.json(result);
 });
 
 module.exports = router;

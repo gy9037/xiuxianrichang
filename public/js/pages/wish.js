@@ -226,6 +226,13 @@ const WishPage = {
             oninput="document.getElementById('diff-display').textContent=this.value"
             style="width:100%;accent-color:var(--primary)">
           <div style="text-align:center;font-size:20px;font-weight:700;color:var(--gold)" id="diff-display">3</div>
+          <!-- V2-F09 FB-07 - 难度参考锚点 -->
+          <div style="font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.8">
+            1-3分：小确幸（一杯奶茶、一部电影）<br>
+            4-6分：小目标（一次聚餐、一件新衣服）<br>
+            7-9分：大愿望（一次旅行、一件大礼物）<br>
+            10分：终极愿望（全家共同的大目标）
+          </div>
         </div>
         <div class="form-group">
           <label>现实奖励</label>

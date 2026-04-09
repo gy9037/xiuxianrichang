@@ -464,3 +464,44 @@ body {
   color: var(--text-dim, #aaa);
   margin-left: 8px;
 }
+
+/* V2-F10 */
+.achievement-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.achievement-item:last-child {
+  border-bottom: none;
+}
+
+.achievement-item.locked {
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+
+.achievement-icon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.achievement-main {
+  min-width: 0;
+}
+
+.achievement-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.achievement-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
