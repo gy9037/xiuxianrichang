@@ -5,6 +5,8 @@ const InventoryPage = {
   selectedIds: new Set(),
   activeTab: null,
   activeSection: 'items', // items | rewards
+  synthesizing: false, // V25-011 - 合成防重复
+  redeeming: false, // V25-011 - 兑现防重复
 
   async load() {
     try {
@@ -24,11 +26,23 @@ const InventoryPage = {
       if (!localStorage.getItem('synthesis_rule_shown')) {
         // V2-F02 FB-02
         localStorage.setItem('synthesis_rule_shown', '1');
-        // V2-F02 FB-02
-        setTimeout(() => this.showSynthesisRule(), 300);
+        // V25-053 - 用 requestAnimationFrame 替代 setTimeout，确保 DOM 渲染完成后再弹窗
+        requestAnimationFrame(() => this.showSynthesisRule());
       }
     } catch (e) {
       App.toast(e.message, 'error');
+      // V25-014 - 加载失败时渲染错误占位页 + 重试按钮
+      const container = document.getElementById('page-inventory');
+      if (container) {
+        container.innerHTML = `
+          <div class="page-header">背包</div>
+          <div class="card" style="text-align:center;padding:32px 16px">
+            <div style="font-size:16px;margin-bottom:12px;color:var(--text-dim)">加载失败</div>
+            <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">${API.escapeHtml(e.message)}</div>
+            <button class="btn btn-primary" style="width:auto;padding:10px 32px" onclick="InventoryPage.load()">重试</button>
+          </div>
+        `;
+      }
     }
   },
 
@@ -72,7 +86,7 @@ const InventoryPage = {
           <div class="item-row">
             <div class="item-info">
               <div class="item-name">${e(r.name)}</div>
-              <div class="item-meta">${e(r.type)} · 难度${r.difficulty}/10 · 发起人${e(r.creator_name)}</div>
+              <div class="item-meta">${e(r.type)} · 难度${r.difficulty}/10 · 由${e(r.creator_name)}发起</div>
               <div class="item-meta">🎁 ${e(r.reward_description)}</div>
             </div>
             <button class="btn btn-success btn-small" onclick="InventoryPage.redeem(${r.id})">兑现</button>
@@ -83,15 +97,22 @@ const InventoryPage = {
       <div class="card">
         <div class="card-title">已兑现</div>
         ${redeemed.length === 0 ? '<div class="empty-state">暂无已兑现记录</div>' : ''}
-        ${redeemed.map(r => `
-          <div class="item-row">
-            <div class="item-info">
-              <div class="item-name">${e(r.name)}</div>
-              <div class="item-meta">🎁 ${e(r.reward_description)}</div>
+        ${redeemed.map((r) => {
+          // V25-085 - 显示兑现时间
+          const redeemTime = r.redeemed_at ? new Date(r.redeemed_at).toLocaleDateString('zh-CN') : '';
+          return `
+            <div class="item-row">
+              <div class="item-info">
+                <div class="item-name">${e(r.name)}</div>
+                <div class="item-meta">🎁 ${e(r.reward_description)}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:12px;color:var(--green)">已兑现</div>
+                ${redeemTime ? `<div style="font-size:11px;color:var(--text-dim)">${redeemTime}</div>` : ''}
+              </div>
             </div>
-            <span style="font-size:12px;color:var(--green)">已兑现</span>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     `;
   },
@@ -105,6 +126,8 @@ const InventoryPage = {
           <div class="empty-icon">🎒</div>
           <div>背包空空如也</div>
           <div style="font-size:13px;margin-top:8px">完成行为上报可获得道具</div>
+          <button class="btn btn-small btn-primary" style="margin-top:12px"
+            onclick="App.navigate('behavior')">去上报行为 →</button>
         </div>
       `;
     }
@@ -115,13 +138,16 @@ const InventoryPage = {
     return `
       <div class="card">
         <div class="card-title">道具背包 <span style="font-size:13px;color:var(--text-dim)">共${this.items.length}件</span></div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;flex-wrap:nowrap">
-          ${tabs.map((t, idx) => `
-            <button class="btn btn-small ${this.activeTab === t ? 'btn-primary' : 'btn-secondary'}"
-              onclick="InventoryPage.switchTabByIndex(${idx})" style="white-space:nowrap">
-              ${e(this.grouped[t].name)}(${this.grouped[t].items.length})
-            </button>
-          `).join('')}
+        <div style="position:relative">
+          <div style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px">
+            ${tabs.map((t, idx) => `
+              <button class="btn btn-small ${this.activeTab === t ? 'btn-primary' : 'btn-secondary'}"
+                onclick="InventoryPage.switchTabByIndex(${idx})" style="white-space:nowrap;flex-shrink:0">
+                ${e(this.grouped[t].name)}(${this.grouped[t].items.length})
+              </button>
+            `).join('')}
+          </div>
+          ${tabs.length > 3 ? '<div style="position:absolute;right:0;top:0;bottom:4px;width:24px;background:linear-gradient(to right,transparent,var(--bg-card));pointer-events:none"></div>' : ''}
         </div>
 
         ${this.activeTab && this.grouped[this.activeTab] ? `
@@ -137,16 +163,15 @@ const InventoryPage = {
               <button class="btn btn-small btn-secondary" style="margin-left:4px" onclick="InventoryPage.selectNone()">取消</button>
             </div>
             ${this.grouped[this.activeTab].items.map(item => `
-              <div class="item-row">
+              <div class="item-row" style="min-height:44px;cursor:pointer;display:flex;align-items:center"
+                onclick="if(event.target.classList.contains('item-check')) return; InventoryPage.toggleItem(${item.id})">
                 <input type="checkbox" class="item-check"
                   ${this.selectedIds.has(item.id) ? 'checked' : ''}
-                  onchange="InventoryPage.toggleItem(${item.id})">
+                  onchange="event.stopPropagation();InventoryPage.toggleItem(${item.id})"
+                  onclick="event.stopPropagation()">
                 <div class="item-info" style="margin-left:10px">
-                  ${(() => {
-                    const q = ['凡品', '良品', '上品', '极品'].includes(item.quality) ? item.quality : '凡品';
-                    return `<div class="item-name quality-${q}">${e(item.name)}</div>`;
-                  })()}
-                  <div class="item-meta">${e(item.quality)} · 临时属性 +${item.temp_value}</div>
+                  <div class="item-name quality-${this.normalizeQuality(item.quality)}">${e(item.name)}</div>
+                  <div class="item-meta">${e(this.normalizeQuality(item.quality))} · 临时属性 +${item.temp_value}</div>
                 </div>
               </div>
             `).join('')}
@@ -159,7 +184,7 @@ const InventoryPage = {
           <div class="synth-info">
             已选${this.selectedIds.size}件 · 总值${selectedTotal.toFixed(1)}
             ${permanentGain > 0 ? `<br><span class="synth-gain">可合成 +${permanentGain}点永久属性</span>` : `<br><span style="color:var(--red)">不足10点，无法合成</span>`}
-            ${selectedTotal % 10 > 0 && permanentGain > 0 ? `<br><span style="font-size:11px;color:var(--text-dim)">浪费${(selectedTotal - permanentGain * 10).toFixed(1)}点</span>` : ''}
+            ${selectedTotal % 10 > 0 && permanentGain > 0 ? `<br><span style="font-size:13px;color:var(--gold)">浪费${(selectedTotal - permanentGain * 10).toFixed(1)}点</span>` : ''}
           </div>
           <button class="btn btn-primary btn-small" ${permanentGain < 1 ? 'disabled' : ''}
             onclick="InventoryPage.synthesize()" style="width:80px">合成</button>
@@ -170,6 +195,7 @@ const InventoryPage = {
 
   switchSection(section) {
     this.activeSection = section;
+    this.selectedIds.clear(); // V25-055 - 切换 section 时也清空选中
     this.render();
   },
 
@@ -189,7 +215,10 @@ const InventoryPage = {
   toggleItem(id) {
     if (this.selectedIds.has(id)) this.selectedIds.delete(id);
     else this.selectedIds.add(id);
-    this.render();
+    // V25-048 - 局部更新 checkbox + 摘要栏
+    const checkbox = document.querySelector(`.item-check[onchange*="toggleItem(${id})"]`);
+    if (checkbox) checkbox.checked = this.selectedIds.has(id);
+    this.updateSynthSummary();
   },
 
   selectAll() {
@@ -197,12 +226,22 @@ const InventoryPage = {
     for (const item of this.grouped[this.activeTab].items) {
       this.selectedIds.add(item.id);
     }
-    this.render();
+    // V25-048 - 局部更新所有 checkbox + 摘要栏
+    document.querySelectorAll('.item-check').forEach((cb) => { cb.checked = true; });
+    this.updateSynthSummary();
   },
 
   selectNone() {
     this.selectedIds.clear();
-    this.render();
+    // V25-048 - 局部更新所有 checkbox + 摘要栏
+    document.querySelectorAll('.item-check').forEach((cb) => { cb.checked = false; });
+    this.updateSynthSummary();
+  },
+
+  // V25-087 - 品质值 normalize，非法值回退"凡品"
+  normalizeQuality(quality) {
+    const valid = ['凡品', '良品', '上品', '极品'];
+    return valid.includes(quality) ? quality : '凡品';
   },
 
   getSelectedTempValue() {
@@ -213,9 +252,58 @@ const InventoryPage = {
     return total;
   },
 
+  // V25-048 - 局部更新合成摘要栏，避免全量重绘
+  updateSynthSummary() {
+    const selectedTotal = this.getSelectedTempValue();
+    const permanentGain = Math.floor(selectedTotal / 10);
+
+    // 更新或移除合成摘要栏
+    let summary = document.querySelector('.synth-summary');
+    if (this.selectedIds.size === 0) {
+      if (summary) summary.remove();
+      return;
+    }
+
+    const summaryHtml = `
+      <div class="synth-info">
+        已选${this.selectedIds.size}件 · 总值${selectedTotal.toFixed(1)}
+        ${permanentGain > 0 ? `<br><span class="synth-gain">可合成 +${permanentGain}点永久属性</span>` : `<br><span style="color:var(--red)">不足10点，无法合成</span>`}
+        ${selectedTotal % 10 > 0 && permanentGain > 0 ? `<br><span style="font-size:13px;color:var(--gold)">浪费${(selectedTotal - permanentGain * 10).toFixed(1)}点</span>` : ''}
+      </div>
+      <button class="btn btn-primary btn-small" ${permanentGain < 1 ? 'disabled' : ''}
+        onclick="InventoryPage.synthesize()" style="width:80px">合成</button>
+    `;
+
+    if (summary) {
+      summary.innerHTML = summaryHtml;
+    } else {
+      // 摘要栏不存在时需要创建并插入
+      summary = document.createElement('div');
+      summary.className = 'synth-summary';
+      summary.innerHTML = summaryHtml;
+      document.getElementById('inventory-content')?.appendChild(summary);
+    }
+  },
+
   async synthesize() {
     const ids = [...this.selectedIds];
     if (ids.length === 0) return;
+    if (this.synthesizing) return; // V25-011 - 防重复
+
+    // V25-013 - 合成前二次确认，展示消耗和收益
+    const selectedTotal = this.getSelectedTempValue();
+    const permanentGain = Math.floor(selectedTotal / 10);
+    const waste = selectedTotal - permanentGain * 10;
+    const confirmMsg = `将消耗 ${ids.length} 件道具（总值${selectedTotal.toFixed(1)}），获得 +${permanentGain} 永久属性${waste > 0 ? `，浪费${waste.toFixed(1)}点` : ''}，确认合成？`;
+    if (!confirm(confirmMsg)) return;
+
+    // V25-011 - 设置合成中状态
+    this.synthesizing = true;
+    const synthBtn = document.querySelector('.synth-summary .btn-primary');
+    if (synthBtn) {
+      synthBtn.disabled = true;
+      synthBtn.textContent = '合成中…';
+    }
 
     try {
       const result = await API.post('/items/synthesize', { item_ids: ids });
@@ -223,16 +311,43 @@ const InventoryPage = {
       this.load();
     } catch (e) {
       App.toast(e.message, 'error');
+    } finally {
+      // V25-011 - 恢复按钮状态
+      this.synthesizing = false;
+      const synthBtn = document.querySelector('.synth-summary .btn-primary');
+      if (synthBtn) {
+        synthBtn.disabled = false;
+        synthBtn.textContent = '合成';
+      }
     }
   },
 
   async redeem(id) {
+    if (this.redeeming) return; // V25-011 - 防重复
+    // V25-012 - 兑现前二次确认
+    if (!confirm('确认将此奖励标记为已兑现？')) return;
+
+    // V25-011 - 设置兑现中状态
+    this.redeeming = true;
+    const redeemBtn = document.querySelector(`[onclick="InventoryPage.redeem(${id})"]`);
+    if (redeemBtn) {
+      redeemBtn.disabled = true;
+      redeemBtn.textContent = '兑现中…';
+    }
+
     try {
       await API.post(`/rewards/${id}/redeem`);
       App.toast('奖励已标记为兑现', 'success');
       this.load();
     } catch (e) {
       App.toast(e.message, 'error');
+    } finally {
+      // V25-011 - 恢复按钮状态
+      this.redeeming = false;
+      if (redeemBtn) {
+        redeemBtn.disabled = false;
+        redeemBtn.textContent = '兑现';
+      }
     }
   },
 
@@ -271,6 +386,8 @@ const InventoryPage = {
           onclick="document.getElementById('synthesis-rule-modal').remove()">明白了</button>
       </div>
     `;
+    // V25-052 - 点击遮罩区域关闭弹窗
+    modal.onclick = function (event) { if (event.target === this) this.remove(); };
     // V2-F02 FB-02
     document.body.appendChild(modal);
   },

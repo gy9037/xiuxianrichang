@@ -16,7 +16,7 @@ router.get('/members', (req, res) => {
   res.json(members);
 });
 
-// GET /api/family/feed — get recent family activity
+// GET /api/family/feed — get recent family activity (V2-F06 fix 批量查询 reactions)
 router.get('/feed', (req, res) => {
   const feed = db.prepare(
     `SELECT b.id, b.category, b.sub_type, b.quality, b.completed_at, u.name as user_name,
@@ -26,47 +26,76 @@ router.get('/feed', (req, res) => {
      LEFT JOIN items i ON b.item_id = i.id
      WHERE u.family_id = ?
      ORDER BY b.completed_at DESC LIMIT 30`
-  ).all(req.user.family_id);
+  ).all(req.user.family_id); // V2-F06 fix
 
-  // V2-F06 FB-06 — 附加 reactions 汇总与当前用户已点表情
-  const enriched = feed.map((f) => {
-    const reactions = db.prepare(
-      `SELECT emoji, COUNT(*) as count FROM behavior_reactions WHERE behavior_id = ? GROUP BY emoji`
-    ).all(f.id);
-    const myReactions = db.prepare(
-      `SELECT emoji FROM behavior_reactions WHERE behavior_id = ? AND user_id = ?`
-    ).all(f.id, req.user.id).map(r => r.emoji);
-    return {
-      ...f,
-      reactions, // V2-F06 FB-06
-      myReactions, // V2-F06 FB-06
-    };
-  });
+  if (feed.length === 0) return res.json([]); // V2-F06 fix
 
-  res.json(enriched);
+  const behaviorIds = feed.map(f => f.id); // V2-F06 fix
+  const placeholders = behaviorIds.map(() => '?').join(','); // V2-F06 fix
+
+  const reactionRows = db.prepare(
+    `SELECT behavior_id, emoji, COUNT(*) as count
+     FROM behavior_reactions
+     WHERE behavior_id IN (${placeholders})
+     GROUP BY behavior_id, emoji`
+  ).all(...behaviorIds); // V2-F06 fix
+
+  const myReactionRows = db.prepare(
+    `SELECT behavior_id, emoji
+     FROM behavior_reactions
+     WHERE behavior_id IN (${placeholders}) AND user_id = ?`
+  ).all(...behaviorIds, req.user.id); // V2-F06 fix
+
+  const reactionsMap = {}; // V2-F06 fix
+  for (const r of reactionRows) { // V2-F06 fix
+    if (!reactionsMap[r.behavior_id]) reactionsMap[r.behavior_id] = []; // V2-F06 fix
+    reactionsMap[r.behavior_id].push({ emoji: r.emoji, count: r.count }); // V2-F06 fix
+  }
+
+  const myReactionsSet = new Set( // V2-F06 fix
+    myReactionRows.map(r => `${r.behavior_id}:${r.emoji}`) // V2-F06 fix
+  );
+
+  const enriched = feed.map(f => ({ // V2-F06 fix
+    ...f,
+    reactions: reactionsMap[f.id] || [], // V2-F06 fix
+    myReactions: ['👍', '💪', '📖', '✨'].filter( // V2-F06 fix
+      e => myReactionsSet.has(`${f.id}:${e}`) // V2-F06 fix
+    ),
+  }));
+
+  res.json(enriched); // V2-F06 fix
 });
 
-// V2-F06 FB-06 — 表情互动
+// V2-F06 FB-06 — 表情互动（toggle：已存在则删除，不存在则插入）
 router.post('/react', (req, res) => {
-  const { behavior_id, emoji } = req.body;
-  const ALLOWED = ['👍', '💪', '📖', '✨'];
+  const { behavior_id, emoji } = req.body; // V2-F06 fix
+  const ALLOWED = ['👍', '💪', '📖', '✨']; // V2-F06 fix
 
-  if (!behavior_id || !ALLOWED.includes(emoji)) {
+  if (!behavior_id || !ALLOWED.includes(emoji)) { // V2-F06 fix
     return res.status(400).json({ error: '参数无效' });
   }
 
-  // V2-F06 FB-06 - 外键约束保护，behavior_id 不存在时返回友好错误
-  const behaviorExists = db.prepare('SELECT id FROM behaviors WHERE id = ? AND user_id IN (SELECT id FROM users WHERE family_id = ?)').get(behavior_id, req.user.family_id);
+  const behaviorExists = db.prepare( // V2-F06 fix
+    'SELECT id FROM behaviors WHERE id = ? AND user_id IN (SELECT id FROM users WHERE family_id = ?)'
+  ).get(behavior_id, req.user.family_id); // V2-F06 fix
   if (!behaviorExists) {
-    return res.status(404).json({ error: '行为记录不存在' });
+    return res.status(404).json({ error: '行为记录不存在' }); // V2-F06 fix
   }
 
-  db.prepare(
-    `INSERT OR IGNORE INTO behavior_reactions (behavior_id, user_id, emoji)
-     VALUES (?, ?, ?)`
-  ).run(behavior_id, req.user.id, emoji);
+  const existing = db.prepare( // V2-F06 fix
+    'SELECT id FROM behavior_reactions WHERE behavior_id = ? AND user_id = ? AND emoji = ?'
+  ).get(behavior_id, req.user.id, emoji); // V2-F06 fix
 
-  res.json({ ok: true });
+  if (existing) {
+    db.prepare('DELETE FROM behavior_reactions WHERE id = ?').run(existing.id); // V2-F06 fix
+    return res.json({ action: 'removed', behavior_id, emoji }); // V2-F06 fix
+  }
+
+  db.prepare( // V2-F06 fix
+    'INSERT INTO behavior_reactions (behavior_id, user_id, emoji) VALUES (?, ?, ?)'
+  ).run(behavior_id, req.user.id, emoji); // V2-F06 fix
+  return res.json({ action: 'added', behavior_id, emoji }); // V2-F06 fix
 });
 
 module.exports = router;

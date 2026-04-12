@@ -3,15 +3,18 @@ const BehaviorPage = {
   shortcuts: null, // V2-F01 FB-05 - Top5 常用行为
   lastBehavior: null, // V2-F01 FB-05 - 最近一次行为，用于一键重复
   selectedCategory: null,
-  selectedSubCategory: null,
   selectedBehavior: null,
   showCustomForm: false,
+  submitting: false, // V25-006 - submit 防重复点击
+  submittingCustom: false, // V25-010 - submitCustom 防重复点击
+  pendingCategory: null, // V2.5 V25-035
   activeTab: 'report', // V2-F07 - 历史 tab 状态
   historyData: null, // V2-F07 - { 'YYYY-MM-DD': [{...}] }
   selectedDate: null, // V2-F07 - 当前选中日期字符串
-  weeklySummary: null, // V2-F07 - { behavior_count, item_count }
+  weeklySummary: null, // V2.5 - 周报数据 { week_start, week_end, behavior_count, item_count, active_days, category_distribution, quality_distribution, streak, streak_note }
   historyYear: null, // V2-F07 - 当前查看年份（null = 当前月）
   historyMonth: null, // V2-F07 - 当前查看月份（null = 当前月）
+  showRecentHistory: false,
 
   async load() {
     try {
@@ -24,31 +27,40 @@ const BehaviorPage = {
       this.categories = categories;
       this.shortcuts = shortcuts;
       this.lastBehavior = lastBehavior;
+
+      if (this.selectedCategory === null) {
+        const savedCat = localStorage.getItem('behavior_last_category');
+        if (savedCat && this.categories[savedCat]) {
+          this.selectedCategory = savedCat;
+        }
+      }
+
       this.render();
+
+      // V2.5 V25-035 - 消费 pendingCategory
+      if (this.pendingCategory) {
+        this.selectCategory(this.pendingCategory);
+        this.pendingCategory = null;
+      }
     } catch (e) {
       App.toast(e.message, 'error');
+      // V25-081 - 加载失败时渲染错误提示卡片 + 重试按钮
+      const container = document.getElementById('page-behavior');
+      if (container) {
+        container.innerHTML = `
+          <div class="card" style="text-align:center;padding:32px 16px">
+            <div style="font-size:16px;margin-bottom:12px;color:var(--text-dim)">加载失败</div>
+            <div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">${API.escapeHtml(e.message)}</div>
+            <button class="btn btn-primary" style="width:auto;padding:10px 32px" onclick="BehaviorPage.load()">重试</button>
+          </div>
+        `;
+      }
     }
   },
 
-  isGroupedCategory(category) {
-    if (!category || !this.categories?.[category]) return false;
-    return !Array.isArray(this.categories[category]);
-  },
-
-  getBehaviorList(category, subCategory) {
-    if (!category || !this.categories?.[category]) return [];
-    const data = this.categories[category];
-    if (Array.isArray(data)) return data;
-    if (!subCategory || !Array.isArray(data[subCategory])) return [];
-    return data[subCategory];
-  },
-
-  render() {
-    const container = document.getElementById('page-behavior');
-    const e = API.escapeHtml.bind(API);
-
-    // V2-F07 - tab 切换：上报 | 历史
-    const tabBar = `
+  // V25-038 - 抽取 tab bar 渲染，消除三处重复
+  renderTabBar() {
+    return `
       <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
         <button class="btn btn-small ${this.activeTab === 'report' ? 'btn-primary' : 'btn-secondary'}"
           style="border-radius:6px 0 0 0"
@@ -58,6 +70,14 @@ const BehaviorPage = {
           onclick="BehaviorPage.switchTab('history')">历史</button>
       </div>
     `;
+  },
+
+  render() {
+    const container = document.getElementById('page-behavior');
+    const e = API.escapeHtml.bind(API);
+
+    // V2-F07 - tab 切换：上报 | 历史
+    const tabBar = this.renderTabBar(); // V25-038
 
     if (this.activeTab === 'history') {
       container.innerHTML = tabBar + this.renderHistory();
@@ -66,57 +86,122 @@ const BehaviorPage = {
     }
 
     const cats = Object.keys(this.categories || {});
-    const grouped = this.isGroupedCategory(this.selectedCategory);
-    const subCategories = grouped ? Object.keys(this.categories[this.selectedCategory] || {}) : [];
-    const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
+    const list = this.selectedCategory ? (this.categories[this.selectedCategory] || []) : [];
 
     container.innerHTML = tabBar + `
-      <div class="page-header">行为上报</div>
-
-      ${this.renderShortcuts()}
-
       <div class="card">
-        <div class="card-title">选择行为类型</div>
+        ${this.renderInlineShortcuts()}
+        <div class="card-title" style="margin-bottom:8px">选择行为类型</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
           ${cats.map((c, idx) => `
             <button class="btn btn-small ${this.selectedCategory === c ? 'btn-primary' : 'btn-secondary'}"
               onclick="BehaviorPage.selectCategoryByIndex(${idx})">${e(c)}</button>
           `).join('')}
         </div>
-
-        ${this.selectedCategory && grouped ? `
-          <div class="card-title" style="margin-top:8px">选择训练部位</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-            ${subCategories.map((sub, idx) => `
-              <button class="btn btn-small ${this.selectedSubCategory === sub ? 'btn-primary' : 'btn-secondary'}"
-                onclick="BehaviorPage.selectSubCategoryByIndex(${idx})">${e(sub)}</button>
-            `).join('')}
-          </div>
-        ` : ''}
-
         ${this.selectedCategory ? `
-          <div class="card-title" style="margin-top:8px">选择具体行为</div>
+          <div class="card-title" style="margin-top:4px;margin-bottom:8px">选择行为</div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">
             ${list.map((b, idx) => `
-              <button class="btn btn-small ${this.selectedBehavior?.name === b.name ? 'btn-primary' : 'btn-secondary'}"
-                onclick="BehaviorPage.selectBehaviorByIndex(${idx})">${e(b.name)}</button>
+              <button class="btn btn-small ${this.selectedBehavior === b ? 'btn-primary' : 'btn-secondary'}"
+                onclick="BehaviorPage.selectBehaviorByIndex(${idx})">${e(b)}</button>
             `).join('')}
             <button class="btn btn-small btn-secondary" onclick="BehaviorPage.openAddCustom()">➕ 自定义</button>
           </div>
         ` : ''}
+        ${this.showCustomForm ? this.renderInlineCustomForm() : ''}
+        ${this.selectedBehavior ? this.renderInlineInputForm() : ''}
       </div>
-
-      ${this.showCustomForm ? this.renderCustomForm() : ''}
-
-      ${this.selectedBehavior ? this.renderInputForm() : ''}
-
-      <div class="card" style="margin-top:16px">
-        <div class="card-title">最近记录</div>
-        <div id="behavior-history"></div>
+      <div class="card" style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer"
+          onclick="BehaviorPage.toggleRecentHistory()">
+          <span class="card-title" style="margin-bottom:0">最近记录</span>
+          <span style="font-size:12px;color:var(--text-dim)">${this.showRecentHistory ? '收起 ▴' : '展开 ▾'}</span>
+        </div>
+        ${this.showRecentHistory ? '<div id="behavior-history"></div>' : ''}
       </div>
     `;
 
-    this.loadRecentHistory(); // V2-F07 - report tab 保持最近记录加载
+    if (this.showRecentHistory) {
+      this.loadRecentHistory();
+    }
+  },
+
+  toggleRecentHistory() {
+    this.showRecentHistory = !this.showRecentHistory;
+    this.render();
+  },
+
+  // V2.5 - 周报卡片渲染
+  renderWeeklyReport(summary) {
+    if (!summary) {
+      return '<div class="card" style="margin-bottom:12px"><div class="item-meta">加载中…</div></div>';
+    }
+
+    // 格式化日期 YYYY-MM-DD → M/D
+    const fmtDate = (s) => { const p = s.split('-'); return `${+p[1]}/${+p[2]}`; };
+
+    // 区块 1 — 本周概览
+    const overviewBlock = `
+      <div class="card-title">本周修炼报告（${fmtDate(summary.week_start)} - ${fmtDate(summary.week_end)}）</div>
+      <div style="display:flex;gap:24px;font-size:14px;margin-bottom:16px">
+        <span>行为 <strong>${summary.behavior_count}</strong> 次</span>
+        <span>道具 <strong>${summary.item_count}</strong> 件</span>
+        <span>活跃 <strong>${summary.active_days}/7</strong> 天</span>
+      </div>
+    `;
+
+    // 区块 2 — 类别分布（横向条形图）
+    let categoryBlock = '';
+    if (summary.category_distribution && summary.category_distribution.length > 0) {
+      const maxCount = summary.category_distribution[0].count;
+      const bars = summary.category_distribution.map((c) => {
+        const pct = maxCount > 0 ? Math.round((c.count / maxCount) * 100) : 0;
+        return `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px">
+            <span style="min-width:56px;text-align:right;color:var(--text-dim)">${c.category}</span>
+            <div style="flex:1;height:8px;background:var(--bg-card-light, #f0f0f0);border-radius:4px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:4px"></div>
+            </div>
+            <span style="min-width:28px;font-size:12px;color:var(--text-dim)">${c.count}次</span>
+          </div>
+        `;
+      }).join('');
+      categoryBlock = `<div style="margin-bottom:16px">${bars}</div>`;
+    }
+
+    // 区块 3 — 品质分布（一行标签）
+    let qualityBlock = '';
+    const qd = summary.quality_distribution;
+    if (qd && Object.keys(qd).length > 0) {
+      const qualityOrder = ['凡品', '良品', '上品', '极品'];
+      const tags = qualityOrder
+        .filter(q => qd[q])
+        .map((q) => {
+          const cls = ['凡品', '良品', '上品', '极品'].includes(q) ? q : '凡品';
+          return `<span class="quality-${cls}" style="font-size:13px">${q} ×${qd[q]}</span>`;
+        }).join('&nbsp;&nbsp;&nbsp;');
+      if (tags) {
+        qualityBlock = `<div style="margin-bottom:16px">${tags}</div>`;
+      }
+    }
+
+    // 区块 4 — 连续修炼（streak）
+    let streakBlock = '';
+    if (summary.streak > 0) {
+      const note = summary.streak_note ? `<span style="font-size:12px;color:var(--text-dim)">（${summary.streak_note}）</span>` : '';
+      streakBlock = `<div style="font-size:14px">🔥 连续修炼 <strong>${summary.streak}</strong> 天${note}</div>`;
+    } else {
+      streakBlock = '<div style="font-size:13px;color:var(--text-dim)">今天开始新的连续修炼吧</div>';
+    }
+
+    return `
+      <div class="card" style="margin-bottom:12px">
+        ${overviewBlock}
+        ${categoryBlock}
+        ${qualityBlock}
+        ${streakBlock}
+      </div>
+    `;
   },
 
   // V2-F07 - 渲染历史 tab（本周汇总 + 月历 + 日期详情）
@@ -128,15 +213,7 @@ const BehaviorPage = {
     const data = this.historyData ?? {};
     const summary = this.weeklySummary;
 
-    const summaryCard = summary ? `
-      <div class="card" style="margin-bottom:12px">
-        <div class="card-title">本周汇总</div>
-        <div style="display:flex;gap:24px;font-size:14px">
-          <span>行为 <strong>${summary.behavior_count}</strong> 次</span>
-          <span>道具 <strong>${summary.item_count}</strong> 件</span>
-        </div>
-      </div>
-    ` : '<div class="card" style="margin-bottom:12px"><div class="item-meta">加载中…</div></div>';
+    const summaryCard = this.renderWeeklyReport(summary); // V2.5 周报
 
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
@@ -165,9 +242,11 @@ const BehaviorPage = {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const hasBehavior = !!data[dateStr];
       const isSelected = this.selectedDate === dateStr;
+      // V25-044 - 增大日历格子点击区域
       cells += `
         <div onclick="BehaviorPage.selectDate('${dateStr}')"
-          style="text-align:center;padding:6px 2px;border-radius:6px;cursor:pointer;font-size:13px;
+          style="min-width:36px;min-height:36px;display:flex;align-items:center;justify-content:center;
+                 border-radius:6px;cursor:pointer;font-size:13px;
                  background:${isSelected ? 'var(--primary)' : hasBehavior ? 'var(--primary-dim, #e8f4ff)' : 'transparent'};
                  color:${isSelected ? '#fff' : 'inherit'};
                  font-weight:${hasBehavior ? '600' : '400'}">
@@ -215,117 +294,68 @@ const BehaviorPage = {
     return summaryCard + calGrid + dateDetail;
   },
 
-  // V2-F01 FB-05 - 渲染常用行为快捷入口卡片
-  renderShortcuts() {
+  renderInlineShortcuts() {
     const hasShortcuts = this.shortcuts && this.shortcuts.length > 0;
     const hasLast = !!this.lastBehavior;
     if (!hasShortcuts && !hasLast) return '';
-
     const e = API.escapeHtml.bind(API);
     return `
-      <div class="card" style="margin-bottom:12px">
-        <div class="card-title">常用行为</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-          ${hasShortcuts ? this.shortcuts.map((s, idx) => `
-          <button class="btn btn-small btn-secondary"
-            onclick="BehaviorPage.selectShortcut(${idx})">
-            ${e(s.sub_type)}
-          </button>
-        `).join('') : ''}
-        </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
         ${hasLast ? `
-        <button class="btn btn-small btn-secondary" onclick="BehaviorPage.repeatLast()">
-          🔁 重复上次：${e(this.lastBehavior.sub_type)}
-        </button>
-      ` : ''}
+          <button class="btn btn-small btn-secondary" style="font-size:11px;padding:4px 10px;min-height:32px"
+            onclick="BehaviorPage.repeatLast()">🔁 ${e(this.lastBehavior.sub_type)}</button>
+        ` : ''}
+        ${hasShortcuts ? this.shortcuts.map((s, idx) => {
+          const isExercise = s.category === '身体健康';
+          return `
+            <button class="btn btn-small ${isExercise ? 'btn-secondary' : 'btn-success'}"
+              style="font-size:11px;padding:4px 10px;min-height:32px"
+              onclick="BehaviorPage.${isExercise ? 'selectShortcut' : 'quickSubmit'}(${idx})">
+              ${isExercise ? '' : '✓ '}${e(s.sub_type)}
+            </button>
+          `;
+        }).join('') : ''}
       </div>
     `;
   },
 
-  renderInputForm() {
-    const b = this.selectedBehavior;
+  renderInlineInputForm() {
     const e = API.escapeHtml.bind(API);
-    let inputHtml = '';
-
-    if (b.template === 'duration') {
-      inputHtml = `
-        <div class="form-group">
-          <label>时长（分钟）</label>
-          <input type="number" id="behavior-duration" placeholder="输入时长" min="1">
-        </div>
-      `;
-    } else if (b.template === 'quantity') {
-      inputHtml = `
-        <div class="form-group">
-          <label>数量（基础量：${e(b.baseQuantity || '无')}）</label>
-          <input type="number" id="behavior-quantity" placeholder="输入数量" min="1">
-        </div>
-      `;
-    }
-
+    const isExercise = this.selectedCategory === '身体健康';
     return `
-      <div class="card">
-        <div class="card-title">${e(b.name)} ${b.template === 'checkin' ? '（打卡）' : ''}</div>
-        ${inputHtml}
-        <div class="form-group">
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)" id="input-form-card">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">${e(this.selectedBehavior)}</div>
+        ${isExercise ? `
+          <div class="form-group" style="margin-bottom:10px">
+            <label>运动强度</label>
+            <select id="behavior-intensity">
+              <option value="低强度">低强度</option>
+              <option value="热身">热身</option>
+              <option value="高强度">高强度</option>
+              <option value="拉伸">拉伸</option>
+            </select>
+          </div>
+        ` : ''}
+        <div class="form-group" style="margin-bottom:10px">
           <label>备注（可选）</label>
-          <input type="text" id="behavior-desc" placeholder="简单描述一下">
+          <input type="text" id="behavior-desc" placeholder="例如：晚饭后散步30分钟">
         </div>
-        <button class="btn btn-primary" onclick="BehaviorPage.submit()">
-          ${b.template === 'checkin' ? '打卡' : '提交'}
-        </button>
+        <button class="btn btn-primary" id="submit-btn" onclick="BehaviorPage.submit()">提交</button>
       </div>
     `;
   },
 
-  renderCustomForm() {
+  renderInlineCustomForm() {
     return `
-      <div class="card">
-        <div class="card-title">新增自定义行为</div>
-        <div class="form-group">
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">自定义行为</div>
+        <div class="form-group" style="margin-bottom:10px">
           <label>行为名称</label>
-          <input type="text" id="custom-name" placeholder="例如：波比跳">
+          <input type="text" id="custom-name" placeholder="输入行为名称" maxlength="30">
         </div>
-        <div class="form-group">
-          <label>品质判定模板</label>
-          <select id="custom-template" onchange="BehaviorPage.updateCustomFormPreview()">
-            <option value="duration">时长型</option>
-            <option value="quantity">数量型</option>
-            <option value="checkin">打卡型</option>
-          </select>
-        </div>
-        <div class="form-group" id="custom-base-quantity-group" style="display:none">
-          <label>基础量（数量型必填）</label>
-          <input type="number" id="custom-base-quantity" placeholder="例如：20" min="1">
-        </div>
-
-        <div class="form-group">
-          <label style="display:flex;align-items:center;gap:8px">
-            <input type="checkbox" id="custom-instant-report" onchange="BehaviorPage.updateCustomFormPreview()" style="width:auto" checked>
-            同时上报一条（可取消）
-          </label>
-        </div>
-        <div id="custom-instant-fields" style="display:none">
-          <div class="form-group" id="custom-instant-duration-group">
-            <label>本次时长（分钟）</label>
-            <input type="number" id="custom-instant-duration" placeholder="例如：30" min="1">
-          </div>
-          <div class="form-group" id="custom-instant-quantity-group" style="display:none">
-            <label>本次数量</label>
-            <input type="number" id="custom-instant-quantity" placeholder="例如：40" min="1">
-          </div>
-          <div class="form-group" id="custom-instant-checkin-tip" style="display:none">
-            <div style="font-size:12px;color:var(--text-dim)">打卡型无需额外填写数值，提交即记为一次打卡。</div>
-          </div>
-          <div class="form-group">
-            <label>本次备注（可选）</label>
-            <input type="text" id="custom-instant-desc" placeholder="例如：晚饭后训练">
-          </div>
-        </div>
-
         <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary" onclick="BehaviorPage.closeAddCustom()">取消</button>
-          <button class="btn btn-primary" onclick="BehaviorPage.submitCustom()">保存</button>
+          <button class="btn btn-small btn-secondary" onclick="BehaviorPage.closeAddCustom()">取消</button>
+          <button class="btn btn-small btn-primary" id="submit-custom-btn" onclick="BehaviorPage.submitCustom()">保存</button>
         </div>
       </div>
     `;
@@ -342,12 +372,7 @@ const BehaviorPage = {
     this.selectedBehavior = null;
     this.showCustomForm = false;
 
-    if (this.isGroupedCategory(category)) {
-      const subs = Object.keys(this.categories[category] || {});
-      this.selectedSubCategory = subs[0] || null;
-    } else {
-      this.selectedSubCategory = null;
-    }
+    localStorage.setItem('behavior_last_category', category);
 
     this.render();
   },
@@ -359,28 +384,17 @@ const BehaviorPage = {
     this.selectCategory(category);
   },
 
-  selectSubCategory(subCategory) {
-    this.selectedSubCategory = subCategory;
-    this.selectedBehavior = null;
-    this.showCustomForm = false;
-    this.render();
-  },
-
-  selectSubCategoryByIndex(index) {
-    if (!this.selectedCategory || !this.isGroupedCategory(this.selectedCategory)) return;
-    const subs = Object.keys(this.categories[this.selectedCategory] || {});
-    const sub = subs[index];
-    if (!sub) return;
-    this.selectSubCategory(sub);
-  },
-
   selectBehavior(behavior) {
-    this.selectedBehavior = behavior;
+    this.selectedBehavior = behavior; // behavior 现在是字符串
     this.render();
+    // V25-041/042 - 选中行为后自动滚动到输入表单，解决键盘遮挡和滚动引导
+    requestAnimationFrame(() => {
+      document.getElementById('input-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
   },
 
   selectBehaviorByIndex(index) {
-    const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
+    const list = this.categories?.[this.selectedCategory] || [];
     const behavior = list[index];
     if (!behavior) return;
     this.selectBehavior(behavior);
@@ -391,36 +405,72 @@ const BehaviorPage = {
     const s = this.shortcuts[index];
     if (!s) return;
 
-    // V2-F01 FB-05 - 设置 category
     this.selectedCategory = s.category;
     this.showCustomForm = false;
 
-    // V2-F01 FB-05 - 设置 sub_category（分组类行为）
-    if (s.sub_category) {
-      this.selectedSubCategory = s.sub_category;
-    } else if (this.isGroupedCategory(s.category)) {
-      // V2-F01 FB-05 - sub_category 为 null 但是分组类，降级选第一个子分类
-      const subs = Object.keys(this.categories[s.category] || {});
-      this.selectedSubCategory = subs[0] || null;
-    } else {
-      this.selectedSubCategory = null;
-    }
-
-    // V2-F01 FB-05 - 查找 behaviorDef
-    const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
-    const behavior = list.find(b => b.name === s.sub_type);
-    if (!behavior) {
+    if (!this.categories[s.category]?.includes(s.sub_type)) {
       App.toast('该行为已不存在，请手动选择', 'error');
+      this.selectedCategory = null;
       this.selectedBehavior = null;
       this.render();
       return;
     }
 
-    this.selectedBehavior = behavior;
+    this.selectedBehavior = s.sub_type;
     this.render();
   },
 
-  // V2-F01 FB-05 - 一键重复上次行为，预填充上次数值
+  // V25-046 - 快捷一键打卡（非身体健康类别可直接提交）
+  async quickSubmit(index) {
+    const s = this.shortcuts[index];
+    if (!s) return;
+
+    if (s.category === '身体健康') {
+      this.selectShortcut(index);
+      return;
+    }
+
+    if (this.submitting) return; // 复用 V25-006 防重复标志
+
+    this.submitting = true;
+    try {
+      const body = {
+        category: s.category,
+        sub_type: s.sub_type,
+        description: '',
+      };
+
+      const result = await API.post('/behavior', body);
+      const item = result.item;
+      const attrNameMap = {
+        physique: '体魄', comprehension: '悟性', willpower: '心性', dexterity: '灵巧', perception: '神识',
+      };
+      const cv = result.cultivationStatus;
+      let toastMsg = `打卡成功：${item.name}（${item.quality}）+${item.temp_value}临时${attrNameMap[item.attribute_type] || item.attribute_type}`;
+      if (cv) {
+        toastMsg += ` · ${cv.level}（${cv.activeDays}/7天）`;
+      }
+      App.toast(toastMsg, 'success');
+
+      // 刷新快捷入口数据
+      try {
+        const [shortcuts, lastBehavior] = await Promise.all([
+          API.get('/behavior/shortcuts'),
+          API.get('/behavior/last'),
+        ]);
+        this.shortcuts = shortcuts;
+        this.lastBehavior = lastBehavior;
+      } catch (_) {}
+
+      this.render();
+    } catch (e) {
+      App.toast(e.message, 'error');
+    } finally {
+      this.submitting = false;
+    }
+  },
+
+  // V2-F01 FB-05 - 一键重复上次行为，预填充上次文本/强度
   repeatLast() {
     const last = this.lastBehavior;
     if (!last) return;
@@ -428,40 +478,27 @@ const BehaviorPage = {
     this.selectedCategory = last.category;
     this.showCustomForm = false;
 
-    if (last.sub_category) {
-      this.selectedSubCategory = last.sub_category;
-    } else if (this.isGroupedCategory(last.category)) {
-      const subs = Object.keys(this.categories[last.category] || {});
-      this.selectedSubCategory = subs[0] || null;
-    } else {
-      this.selectedSubCategory = null;
-    }
-
-    const list = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
-    const behavior = list.find(b => b.name === last.sub_type);
-    if (!behavior) {
+    if (!this.categories[last.category]?.includes(last.sub_type)) {
       App.toast('该行为已不存在，请手动选择', 'error');
+      this.selectedCategory = null;
       this.selectedBehavior = null;
       this.render();
       return;
     }
 
-    this.selectedBehavior = behavior;
+    this.selectedBehavior = last.sub_type;
     this.render();
 
-    // V2-F01 FB-05 - 预填充上次数值
-    if (last.duration) {
-      const el = document.getElementById('behavior-duration');
-      if (el) el.value = last.duration;
-    }
-    if (last.quantity) {
-      const el = document.getElementById('behavior-quantity');
-      if (el) el.value = last.quantity;
-    }
-    if (last.description) {
-      const el = document.getElementById('behavior-desc');
-      if (el) el.value = last.description;
-    }
+    requestAnimationFrame(() => {
+      if (last.description) {
+        const el = document.getElementById('behavior-desc');
+        if (el) el.value = last.description;
+      }
+      if (last.category === '身体健康' && last.intensity) {
+        const el = document.getElementById('behavior-intensity');
+        if (el) el.value = last.intensity;
+      }
+    });
   },
 
   async openAddCustom() {
@@ -469,7 +506,6 @@ const BehaviorPage = {
     this.showCustomForm = true;
     this.selectedBehavior = null;
     this.render();
-    this.updateCustomFormPreview();
   },
 
   closeAddCustom() {
@@ -477,164 +513,113 @@ const BehaviorPage = {
     this.render();
   },
 
-  updateCustomFormPreview() {
-    const template = document.getElementById('custom-template')?.value || 'duration';
-    const instant = document.getElementById('custom-instant-report')?.checked;
-
-    const baseGroup = document.getElementById('custom-base-quantity-group');
-    if (baseGroup) baseGroup.style.display = template === 'quantity' ? 'block' : 'none';
-
-    const instantFields = document.getElementById('custom-instant-fields');
-    if (instantFields) instantFields.style.display = instant ? 'block' : 'none';
-
-    const durationGroup = document.getElementById('custom-instant-duration-group');
-    const quantityGroup = document.getElementById('custom-instant-quantity-group');
-    const checkinTip = document.getElementById('custom-instant-checkin-tip');
-    if (durationGroup) durationGroup.style.display = template === 'duration' ? 'block' : 'none';
-    if (quantityGroup) quantityGroup.style.display = template === 'quantity' ? 'block' : 'none';
-    if (checkinTip) checkinTip.style.display = template === 'checkin' ? 'block' : 'none';
-  },
-
   async submitCustom() {
     if (!this.selectedCategory) return;
+    if (this.submittingCustom) return; // V25-010 - 防重复点击
 
-    const name = (document.getElementById('custom-name')?.value || '').trim();
-    const template = document.getElementById('custom-template')?.value || 'duration';
-    const instant = !!document.getElementById('custom-instant-report')?.checked;
-    const desc = (document.getElementById('custom-instant-desc')?.value || '').trim();
-
-    if (!name) {
-      App.toast('请输入行为名称', 'error');
-      return;
+    // V25-010 - 设置提交中状态
+    this.submittingCustom = true;
+    const customBtn = document.getElementById('submit-custom-btn');
+    if (customBtn) {
+      customBtn.disabled = true;
+      customBtn.textContent = '保存中…';
     }
 
-    let baseQuantity = null;
-    if (template === 'quantity') {
-      const rawBase = document.getElementById('custom-base-quantity')?.value;
-      baseQuantity = Number.parseInt(rawBase, 10);
-      if (!Number.isInteger(baseQuantity) || baseQuantity <= 0) {
-        App.toast('数量型行为需要填写基础量', 'error');
-        return;
-      }
-    }
-
-    const reportBody = {
-      category: this.selectedCategory,
-      sub_type: name,
-      description: desc,
-    };
-    if (this.isGroupedCategory(this.selectedCategory)) {
-      reportBody.sub_category = '自定义';
-    }
-    if (template === 'duration') {
-      const v = Number.parseInt(document.getElementById('custom-instant-duration')?.value, 10);
-      if (instant && (!Number.isInteger(v) || v <= 0)) {
-        App.toast('请填写本次时长', 'error');
-        return;
-      }
-      if (instant) reportBody.duration = v;
-    }
-    if (template === 'quantity') {
-      const v = Number.parseInt(document.getElementById('custom-instant-quantity')?.value, 10);
-      if (instant && (!Number.isInteger(v) || v <= 0)) {
-        App.toast('请填写本次数量', 'error');
-        return;
-      }
-      if (instant) reportBody.quantity = v;
-    }
-
-    let created = false;
     try {
+      const name = (document.getElementById('custom-name')?.value || '').trim();
+      if (!name) {
+        App.toast('请输入行为名称', 'error');
+        return;
+      }
+
       await API.post('/behavior/custom', {
         category: this.selectedCategory,
         name,
-        template,
-        base_quantity: baseQuantity,
       });
-      created = true;
-    } catch (e) {
-      const msg = e?.message || '提交失败';
-      const duplicated = msg.includes('已存在');
-      if (!(instant && duplicated)) {
-        App.toast(msg, 'error');
-        return;
-      }
-    }
 
-    try {
+      // 刷新 categories
       this.categories = await API.get('/behavior/categories');
-      if (this.isGroupedCategory(this.selectedCategory) && this.categories[this.selectedCategory]['自定义']) {
-        this.selectedSubCategory = '自定义';
-      }
 
-      if (instant) {
-        const result = await API.post('/behavior', reportBody);
-        const item = result.item;
-        const attrNameMap = {
-          physique: '体魄', comprehension: '悟性', willpower: '心性', dexterity: '灵巧', perception: '神识',
-        };
-        App.toast(
-          `${created ? '已新增并上报' : '已上报'}：${item.name}（${item.quality}）+${item.temp_value}临时${attrNameMap[item.attribute_type] || item.attribute_type}`,
-          'success'
-        );
-      } else {
-        App.toast(created ? '自定义行为已添加' : '行为已存在', 'success');
-      }
-
-      const currentList = this.getBehaviorList(this.selectedCategory, this.selectedSubCategory);
-      this.selectedBehavior = currentList.find(b => b.name === name) || null;
+      // 自动选中新行为
+      const list = this.categories[this.selectedCategory] || [];
+      this.selectedBehavior = list.includes(name) ? name : null;
       this.showCustomForm = false;
+
+      App.toast('自定义行为已添加', 'success');
       this.render();
     } catch (e) {
       App.toast(e.message, 'error');
+    } finally {
+      // V25-010 - 恢复按钮状态
+      this.submittingCustom = false;
+      const resetBtn = document.getElementById('submit-custom-btn');
+      if (resetBtn) {
+        resetBtn.disabled = false;
+        resetBtn.textContent = '保存';
+      }
     }
   },
 
   async submit() {
+    if (this.submitting) return; // V25-006 - 防重复点击
     const b = this.selectedBehavior;
     if (!b || !this.selectedCategory) return;
 
-    const body = {
-      category: this.selectedCategory,
-      sub_type: b.name,
-      description: document.getElementById('behavior-desc')?.value || '',
-    };
-    if (this.selectedSubCategory) {
-      body.sub_category = this.selectedSubCategory;
-    }
-
-    if (b.template === 'duration') {
-      const dur = parseInt(document.getElementById('behavior-duration')?.value, 10);
-      if (!dur || dur < 1) { App.toast('请输入时长', 'error'); return; }
-      body.duration = dur;
-    } else if (b.template === 'quantity') {
-      const qty = parseInt(document.getElementById('behavior-quantity')?.value, 10);
-      if (!qty || qty < 1) { App.toast('请输入数量', 'error'); return; }
-      body.quantity = qty;
+    // V25-006 - 设置提交中状态
+    this.submitting = true;
+    const submitBtn = document.getElementById('submit-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '提交中…';
     }
 
     try {
+      const body = {
+        category: this.selectedCategory,
+        sub_type: this.selectedBehavior,
+        description: document.getElementById('behavior-desc')?.value || '',
+      };
+
+      if (this.selectedCategory === '身体健康') {
+        body.intensity = document.getElementById('behavior-intensity')?.value || '低强度';
+      }
+
       const result = await API.post('/behavior', body);
       const item = result.item;
       const attrNameMap = {
         physique: '体魄', comprehension: '悟性', willpower: '心性', dexterity: '灵巧', perception: '神识',
       };
-      App.toast(`获得 ${item.name}（${item.quality}）+${item.temp_value}临时${attrNameMap[item.attribute_type] || item.attribute_type}`, 'success');
+      const cv = result.cultivationStatus;
+      let toastMsg = `获得 ${item.name}（${item.quality}）+${item.temp_value}临时${attrNameMap[item.attribute_type] || item.attribute_type}`;
+      if (cv) {
+        toastMsg += ` · ${cv.level}（${cv.activeDays}/7天）`;
+      }
+      App.toast(toastMsg, 'success');
       this.selectedBehavior = null;
 
-      // V2-F01 FB-05 - 上报成功后刷新快捷入口数据
-      Promise.all([
-        API.get('/behavior/shortcuts'),
-        API.get('/behavior/last'),
-      ]).then(([shortcuts, lastBehavior]) => {
+      // V25-007 - 先 await 刷新快捷入口数据，再统一 render 一次（消除双 render 闪烁）
+      try {
+        const [shortcuts, lastBehavior] = await Promise.all([
+          API.get('/behavior/shortcuts'),
+          API.get('/behavior/last'),
+        ]);
         this.shortcuts = shortcuts;
         this.lastBehavior = lastBehavior;
-        this.render();
-      }).catch(() => {});
+      } catch (_) {
+        // 快捷数据刷新失败不影响主流程
+      }
 
       this.render();
     } catch (e) {
       App.toast(e.message, 'error');
+    } finally {
+      // V25-006 - 恢复按钮状态
+      this.submitting = false;
+      const resetBtn = document.getElementById('submit-btn');
+      if (resetBtn) {
+        resetBtn.disabled = false;
+        resetBtn.textContent = '提交';
+      }
     }
   },
 
@@ -656,14 +641,7 @@ const BehaviorPage = {
 
       const el = document.getElementById('page-behavior');
       if (el && this.activeTab === 'history') {
-        el.innerHTML = `
-          <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
-            <button class="btn btn-small btn-secondary" style="border-radius:6px 0 0 0"
-              onclick="BehaviorPage.switchTab('report')">上报</button>
-            <button class="btn btn-small btn-primary" style="border-radius:0 6px 0 0"
-              onclick="BehaviorPage.switchTab('history')">历史</button>
-          </div>
-        ` + this.renderHistory();
+        el.innerHTML = this.renderTabBar() + this.renderHistory(); // V25-038
       }
     } catch (err) {
       App.toast(err.message, 'error');
@@ -675,24 +653,19 @@ const BehaviorPage = {
     this.selectedDate = this.selectedDate === dateStr ? null : dateStr;
     const el = document.getElementById('page-behavior');
     if (el) {
-      el.innerHTML = `
-        <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
-          <button class="btn btn-small btn-secondary" style="border-radius:6px 0 0 0"
-            onclick="BehaviorPage.switchTab('report')">上报</button>
-          <button class="btn btn-small btn-primary" style="border-radius:0 6px 0 0"
-            onclick="BehaviorPage.switchTab('history')">历史</button>
-        </div>
-      ` + this.renderHistory();
+      el.innerHTML = this.renderTabBar() + this.renderHistory(); // V25-038
     }
   },
 
-  // V2-F07 - 切换月份
+  // V25-043 - 月历切换时保留旧数据，避免空白闪烁
   navMonth(year, month) {
     this.historyYear = year;
     this.historyMonth = month;
-    this.historyData = null;
+    // V25-043 - 不再置空 historyData，保留旧数据显示
+    // this.historyData = null;
     this.selectedDate = null;
     this.render();
+    // loadHistory() 完成后会自然替换数据并重新渲染
   },
 
   async loadRecentHistory() {
@@ -713,8 +686,7 @@ const BehaviorPage = {
             <div class="item-name">${e(b.sub_type)}</div>
             <div class="item-meta">
               ${e(b.category)}
-              ${b.duration ? `· ${b.duration}分钟` : ''}
-              ${b.quantity ? `· ${b.quantity}个` : ''}
+              ${b.intensity ? `· ${e(b.intensity)}` : ''}
               ${(() => {
                 const q = ['凡品', '良品', '上品', '极品'].includes(b.quality) ? b.quality : '凡品';
                 return `· <span class="quality-${q}">${e(b.quality)}</span>`;
@@ -731,7 +703,11 @@ const BehaviorPage = {
         </div>
       `).join('');
     } catch {
-      // silently fail
+      // V25-083 - 加载失败时在容器中显示提示
+      const el = document.getElementById('behavior-history');
+      if (el) {
+        el.innerHTML = '<div class="empty-state" style="color:var(--text-dim)">加载失败，请刷新重试</div>';
+      }
     }
   },
 };

@@ -1,71 +1,35 @@
 {
-  "身体健康": {
-    "上肢": [
-      { "name": "俯卧撑", "template": "quantity", "baseQuantity": 20 },
-      { "name": "引体向上", "template": "quantity", "baseQuantity": 10 },
-      { "name": "哑铃弯举", "template": "quantity", "baseQuantity": 20 }
-    ],
-    "核心": [
-      { "name": "仰卧起坐", "template": "quantity", "baseQuantity": 20 },
-      { "name": "平板支撑", "template": "duration" },
-      { "name": "卷腹", "template": "quantity", "baseQuantity": 20 }
-    ],
-    "胸背肩": [
-      { "name": "卧推", "template": "quantity", "baseQuantity": 20 },
-      { "name": "划船", "template": "quantity", "baseQuantity": 20 },
-      { "name": "肩推", "template": "quantity", "baseQuantity": 20 }
-    ],
-    "下肢": [
-      { "name": "深蹲", "template": "quantity", "baseQuantity": 20 },
-      { "name": "箭步蹲", "template": "quantity", "baseQuantity": 20 },
-      { "name": "蹬腿", "template": "quantity", "baseQuantity": 20 }
-    ],
-    "综合/有氧": [
-      { "name": "跑步", "template": "duration" },
-      { "name": "跳绳", "template": "duration" },
-      { "name": "游泳", "template": "duration" },
-      { "name": "骑车", "template": "duration" },
-      { "name": "散步", "template": "duration" },
-      { "name": "瑜伽", "template": "duration" }
-    ]
-  },
-  "学习": [
-    { "name": "读书", "template": "duration" },
-    { "name": "做题", "template": "duration" },
-    { "name": "背单词", "template": "quantity", "baseQuantity": 20 },
-    { "name": "写作", "template": "duration" },
-    { "name": "知识分享", "template": "checkin" },
-    { "name": "练字", "template": "duration" },
-    { "name": "网课学习", "template": "duration" },
-    { "name": "编程练习", "template": "duration" }
-  ],
-  "生活习惯": [
-    { "name": "早起", "template": "checkin" },
-    { "name": "早睡", "template": "checkin" },
-    { "name": "按时吃饭", "template": "checkin" },
-    { "name": "不熬夜", "template": "checkin" },
-    { "name": "冥想", "template": "duration" },
-    { "name": "控制屏幕时间", "template": "checkin" },
-    { "name": "喝够水", "template": "checkin" },
-    { "name": "午休", "template": "checkin" }
-  ],
-  "家务": [
-    { "name": "做饭", "template": "duration" },
-    { "name": "洗碗", "template": "checkin" },
-    { "name": "买菜", "template": "checkin" },
-    { "name": "打扫卫生", "template": "duration" },
-    { "name": "整理房间", "template": "checkin" },
-    { "name": "洗衣服", "template": "checkin" },
-    { "name": "拖地", "template": "checkin" },
-    { "name": "倒垃圾", "template": "checkin" }
-  ],
-  "社交互助": [
-    { "name": "陪家人聊天", "template": "checkin" },
-    { "name": "帮助他人", "template": "checkin" },
-    { "name": "主动分担", "template": "checkin" },
-    { "name": "情绪管理", "template": "checkin" },
-    { "name": "主动道歉", "template": "checkin" },
-    { "name": "陪伴孩子", "template": "duration" },
-    { "name": "家庭活动", "template": "checkin" }
-  ]
+  "statuses": ["居家", "生病", "出差"],
+  "categories": {
+    "身体健康": {
+      "attribute": "physique",
+      "居家": ["上肢", "核心", "胸背肩", "下肢", "综合/有氧"],
+      "生病": ["核心", "下肢", "综合/有氧", "轻度拉伸", "康复训练"],
+      "出差": ["上肢", "核心", "胸背肩", "下肢", "综合/有氧"]
+    },
+    "学习": {
+      "attribute": "comprehension",
+      "居家": ["读书", "知识分享", "网课学习"],
+      "生病": ["读书", "知识分享", "网课学习"],
+      "出差": ["读书", "知识分享", "网课学习"]
+    },
+    "生活习惯": {
+      "attribute": "willpower",
+      "居家": ["早起", "早睡", "冥想", "喝够水"],
+      "生病": ["早起", "早睡", "冥想", "喝够水", "按时吃药"],
+      "出差": ["早起", "早睡", "冥想", "喝够水"]
+    },
+    "家务": {
+      "attribute": "dexterity",
+      "居家": ["做饭", "洗碗", "买菜", "打扫卫生", "整理房间"],
+      "生病": [],
+      "出差": []
+    },
+    "社交互助": {
+      "attribute": "perception",
+      "居家": ["组织家庭活动", "主动分担", "主动道歉"],
+      "生病": ["组织家庭活动", "主动分担", "主动道歉"],
+      "出差": ["拍照分享", "趣事分享", "探索新地方", "当地美食打卡"]
+    }
+  }
 }

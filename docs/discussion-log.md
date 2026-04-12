@@ -172,20 +172,53 @@
 
 ## 八、下个线程的建议启动步骤
 
-1. 读取本文档（`docs/discussion-log.md`）了解全部上下文
-2. 读取PRD V2.0（`docs/PRD.md`）了解产品设计
-3. 读取技术架构（`docs/tech-architecture.md`）了解技术方案
-4. 启动服务：`cd Xiuxianrichang && npm start`
-5. 本机访问 http://localhost:3000，局域网用IP访问
-6. 待处理事项：
-   - 用户体验测试与反馈收集
-   - TODO-3 愿望难度推荐（待数据积累）
-   - 微信小游戏迁移准备
+1. 读取项目工作规范（`docs/project-conventions.md`）了解协作模式和溯源要求
+2. 读取本文档（`docs/discussion-log.md`）了解产品决策上下文
+3. 读取当前版本策划案（`docs/iteration-v2.5.md`）了解当前迭代目标
+4. 检查 workspace 记忆文件（`contexts/memory/`）了解最新进展
+5. 启动服务：`cd /Users/openclaw/AI开发项目/Xiuxianrichang && npm start`
+6. 本机访问 http://localhost:3000，局域网用IP访问
 
-## 九、启动方式
+## 九、当前状态（2026-04-10 更新）
+
+### 版本进度
+| 版本 | 状态 | 说明 |
+|------|------|------|
+| V1 MVP | ✅ 完成 | 核心闭环可用 |
+| V2.1 优化 | ✅ 完成 | 8项OPT全部验收通过 |
+| V2.2 | ✅ 完成 | 行为上报简化/合成透明化/情境化引导 |
+| V2.3 | ✅ 完成 | BUFF状态/Boss战优化/家庭互动/行为历史 |
+| V2.4 | ✅ 完成 | 雷达图/境界文案/成就系统 + UX审查 |
+| V2.5 | 📋 策划案完成 | 93条交互体验优化，待确认后出 Codex 指令 |
+
+### 大版本路线图
+| 版本 | 方向 |
+|------|------|
+| V3 | 社交与竞技（Boss协作、PVP宗门大比） |
+| V4 | 角色与表现（外观/体型变化） |
+| V5 | 智能硬件接入 |
+
+### 待处理事项
+- V2.5 策划案待 Gavin 确认
+- 确认后按优先级出 Codex 指令
+- TODO-3 愿望难度推荐（待数据积累）
+
+### 关键文档索引
+| 文档 | 路径 |
+|------|------|
+| 项目工作规范 | docs/project-conventions.md |
+| V2 策划案 | docs/iteration-v2.md |
+| V2.1 迭代优化 | docs/iteration-v2.1.md |
+| V2.5 策划案 | docs/iteration-v2.5.md |
+| UX 审查报告 | docs/ux-review-*.md（5份） |
+| Codex 指令 | docs/codex-v2-f01~f10.md |
+| 技术架构 | docs/tech-architecture.md |
+| PRD | docs/PRD.md |
+
+## 十、启动方式
 
 ```bash
-cd /Users/openclaw/Claude开发项目/Xiuxianrichang
+cd /Users/openclaw/AI开发项目/Xiuxianrichang
 npm start
 ```
 

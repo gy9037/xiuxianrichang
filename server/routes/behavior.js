@@ -1,13 +1,19 @@
 const express = require('express');
 const { db } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
-const { determineQuality, generateItem, CATEGORY_TO_ATTR } = require('../services/itemGen');
-const behaviorData = require('../data/behaviors.json');
+const { determineQuality, generateItem } = require('../services/itemGen');
+const { getCultivationStatus } = require('../services/cultivation');
+const behaviorConfig = require('../data/behaviors.json');
 
 const router = express.Router();
 router.use(authMiddleware);
+const VALID_USER_STATUSES = new Set(['居家', '生病', '出差']);
 const ATTR_FIELDS = ['physique', 'comprehension', 'willpower', 'dexterity', 'perception'];
 const SAFE_ATTR_FIELD_SET = new Set(ATTR_FIELDS);
+const CATEGORY_TO_ATTR = {};
+for (const [category, conf] of Object.entries(behaviorConfig.categories)) {
+  CATEGORY_TO_ATTR[category] = conf.attribute;
+}
 const ACTIVITY_FIELD_BY_ATTR = {
   physique: 'last_physique_activity',
   comprehension: 'last_comprehension_activity',
@@ -15,88 +21,53 @@ const ACTIVITY_FIELD_BY_ATTR = {
   dexterity: 'last_dexterity_activity',
   perception: 'last_perception_activity',
 };
-const TEMPLATE_MAP = {
-  duration: 'duration',
-  quantity: 'quantity',
-  checkin: 'checkin',
-  时长型: 'duration',
-  数量型: 'quantity',
-  打卡型: 'checkin',
-};
-const VALID_TEMPLATES = new Set(['duration', 'quantity', 'checkin']);
-
-function formatLocalDate(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 function cloneBaseBehaviorData() {
-  return JSON.parse(JSON.stringify(behaviorData));
+  return JSON.parse(JSON.stringify(behaviorConfig));
 }
 
-function pushUniqueBehavior(list, item) {
-  if (!Array.isArray(list)) return;
-  if (list.some(b => b.name === item.name)) return;
-  list.push(item);
-}
+function getMergedBehaviorData(familyId, userStatus = '居家') {
+  const config = cloneBaseBehaviorData();
+  const validStatus = config.statuses.includes(userStatus) ? userStatus : '居家';
 
-function getMergedBehaviorData(familyId) {
-  const merged = cloneBaseBehaviorData();
+  const result = {};
+  for (const [category, catConfig] of Object.entries(config.categories)) {
+    const behaviors = [...(catConfig[validStatus] || catConfig['居家'] || [])];
+    result[category] = behaviors;
+  }
+
   const customs = db.prepare(
-    `SELECT category, name, template, base_quantity
-     FROM custom_behaviors
-     WHERE family_id = ?
-     ORDER BY created_at ASC`
+    `SELECT category, name FROM custom_behaviors WHERE family_id = ? ORDER BY created_at ASC`
   ).all(familyId);
-
   for (const custom of customs) {
-    const target = merged[custom.category];
-    if (!target) continue;
-
-    const behavior = { name: custom.name, template: custom.template };
-    if (custom.base_quantity !== null && custom.base_quantity !== undefined) {
-      behavior.baseQuantity = custom.base_quantity;
+    if (!result[custom.category]) result[custom.category] = [];
+    if (!result[custom.category].includes(custom.name)) {
+      result[custom.category].push(custom.name);
     }
-
-    if (Array.isArray(target)) {
-      pushUniqueBehavior(target, behavior);
-      continue;
-    }
-
-    if (!target['自定义']) target['自定义'] = [];
-    pushUniqueBehavior(target['自定义'], behavior);
   }
 
-  return merged;
+  for (const [category, list] of Object.entries(result)) {
+    if (list.length === 0) delete result[category];
+  }
+
+  return result;
 }
 
-function findBehaviorDef(mergedData, category, subType, subCategory) {
-  const target = mergedData[category];
-  if (!target) return null;
+function behaviorExists(mergedData, category, subType) {
+  const list = mergedData[category];
+  if (!Array.isArray(list)) return false;
+  return list.includes(subType);
+}
 
-  if (Array.isArray(target)) {
-    const found = target.find(b => b.name === subType);
-    return found ? { behaviorDef: found, subCategory: null } : null;
-  }
-
-  if (subCategory && Array.isArray(target[subCategory])) {
-    const found = target[subCategory].find(b => b.name === subType);
-    if (found) return { behaviorDef: found, subCategory };
-  }
-
-  for (const [groupName, list] of Object.entries(target)) {
-    const found = Array.isArray(list) ? list.find(b => b.name === subType) : null;
-    if (found) return { behaviorDef: found, subCategory: groupName };
-  }
-
-  return null;
+function normalizeUserStatus(status) {
+  return VALID_USER_STATUSES.has(status) ? status : '居家';
 }
 
 // GET /api/behavior/categories — get all behavior categories and types
 router.get('/categories', (req, res) => {
-  const mergedData = getMergedBehaviorData(req.user.family_id);
+  const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
+  const userStatus = normalizeUserStatus(userRow?.status);
+  const mergedData = getMergedBehaviorData(req.user.family_id, userStatus);
   res.json(mergedData);
 });
 
@@ -104,27 +75,15 @@ router.get('/categories', (req, res) => {
 router.post('/custom', (req, res) => {
   const category = String(req.body.category || '').trim();
   const name = String(req.body.name || '').trim();
-  const templateRaw = String(req.body.template || '').trim();
-  const template = TEMPLATE_MAP[templateRaw];
-  const baseQuantityRaw = req.body.base_quantity;
-  const baseQuantity = Number.isInteger(baseQuantityRaw)
-    ? baseQuantityRaw
-    : Number.parseInt(baseQuantityRaw, 10);
 
-  if (!category || !name || !template) {
-    return res.status(400).json({ error: '请完整填写行为分类、名称和模板' });
+  if (!category || !name) {
+    return res.status(400).json({ error: '请填写行为分类和名称' });
   }
-  if (!(category in behaviorData)) {
+  if (!behaviorConfig.categories[category]) {
     return res.status(400).json({ error: '无效的行为分类' });
   }
   if (name.length < 1 || name.length > 30) {
     return res.status(400).json({ error: '行为名称长度需在1-30字符之间' });
-  }
-  if (!VALID_TEMPLATES.has(template)) {
-    return res.status(400).json({ error: '无效的品质模板' });
-  }
-  if (template === 'quantity' && (!Number.isInteger(baseQuantity) || baseQuantity <= 0)) {
-    return res.status(400).json({ error: '数量型行为需填写大于0的基础量' });
   }
 
   const duplicate = db.prepare(
@@ -136,115 +95,58 @@ router.post('/custom', (req, res) => {
     return res.status(400).json({ error: '该行为已存在，无需重复添加' });
   }
 
-  const mergedForCheck = getMergedBehaviorData(req.user.family_id);
-  const existed = findBehaviorDef(mergedForCheck, category, name);
-  if (existed) {
+  const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
+  const userStatus = normalizeUserStatus(userRow?.status);
+  const mergedForCheck = getMergedBehaviorData(req.user.family_id, userStatus);
+  if (behaviorExists(mergedForCheck, category, name)) {
     return res.status(400).json({ error: '该行为已存在，无需重复添加' });
   }
 
   const result = db.prepare(
     `INSERT INTO custom_behaviors (family_id, category, name, template, base_quantity, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(
-    req.user.family_id,
-    category,
-    name,
-    template,
-    template === 'quantity' ? baseQuantity : null,
-    req.user.id
-  );
+     VALUES (?, ?, ?, 'checkin', NULL, ?)`
+  ).run(req.user.family_id, category, name, req.user.id);
 
   res.json({
     id: result.lastInsertRowid,
     category,
     name,
-    template,
-    base_quantity: template === 'quantity' ? baseQuantity : null,
     message: '自定义行为添加成功',
   });
 });
 
 // POST /api/behavior — report a behavior
 router.post('/', (req, res) => {
-  const { category, sub_type, sub_category, description, duration, quantity } = req.body;
+  const { category, sub_type, description, intensity } = req.body;
 
   if (!category || !sub_type) {
     return res.status(400).json({ error: '请选择行为类型' });
   }
 
-  // Find behavior definition
-  const mergedData = getMergedBehaviorData(req.user.family_id);
+  const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
+  const userStatus = normalizeUserStatus(userRow?.status);
+  const mergedData = getMergedBehaviorData(req.user.family_id, userStatus);
   if (!mergedData[category]) {
     return res.status(400).json({ error: '无效的行为分类' });
   }
-  const foundBehavior = findBehaviorDef(mergedData, category, sub_type, sub_category);
-  if (!foundBehavior) {
+  if (!behaviorExists(mergedData, category, sub_type)) {
     return res.status(400).json({ error: '无效的行为类型' });
   }
-  const { behaviorDef } = foundBehavior;
 
-  const template = behaviorDef.template;
+  const cultivation = getCultivationStatus(req.user.id);
 
-  // Calculate streak for checkin-type behaviors
-  let streakCount = 1;
-  if (template === 'checkin') {
-    const today = formatLocalDate();
-    const streak = db.prepare(
-      'SELECT * FROM streaks WHERE user_id = ? AND category = ? AND sub_type = ?'
-    ).get(req.user.id, category, sub_type);
-
-    if (streak) {
-      const lastDate = streak.last_date;
-      const yesterdayDate = new Date();
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      const yesterday = formatLocalDate(yesterdayDate);
-
-      // BUG-01 FB-用户反馈：打卡型行为每日限一次不合理
-      // 去掉每日一次的硬性限制，连击只在当天第一次打卡时更新
-      if (lastDate !== today) {
-        if (lastDate === yesterday) {
-          streakCount = streak.current_streak + 1;
-          db.prepare('UPDATE streaks SET current_streak = ?, last_date = ? WHERE id = ?')
-            .run(streakCount, today, streak.id);
-        } else {
-          streakCount = 1;
-          db.prepare('UPDATE streaks SET current_streak = 1, last_date = ? WHERE id = ?')
-            .run(today, streak.id);
-        }
-      } else {
-        // BUG-01 FB-用户反馈：打卡型行为每日限一次不合理
-        // 今天已打卡过，连击数保持不变，streakCount 取当前值
-        streakCount = streak.current_streak;
-      }
-    } else {
-      db.prepare('INSERT INTO streaks (user_id, category, sub_type, current_streak, last_date) VALUES (?, ?, ?, 1, ?)')
-        .run(req.user.id, category, sub_type, today);
-    }
-  }
-
-  // Calculate quantity multiplier for quantity-type
-  let quantityMultiplier = quantity;
-  if (template === 'quantity' && behaviorDef.baseQuantity) {
-    quantityMultiplier = (quantity || 0) / behaviorDef.baseQuantity;
-  }
-
-  // Determine quality
-  const quality = determineQuality(template, {
-    duration: duration || 0,
-    quantity: quantityMultiplier,
-    streakCount,
-  });
+  // Determine quality by probability
+  const quality = determineQuality(category, intensity || null, cultivation.dropBonus);
 
   // Generate item
   const item = generateItem(category, quality);
   if (!item) return res.status(500).json({ error: '道具生成失败' });
 
   // Insert behavior record
-  // V2-F01 FB-05 - 新增 sub_category 字段写入
   const behaviorResult = db.prepare(
-    `INSERT INTO behaviors (user_id, category, sub_category, sub_type, description, quality_template, duration, quantity, quality, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
-  ).run(req.user.id, category, foundBehavior.subCategory || null, sub_type, description || '', template, duration || null, quantity || null, quality);
+    `INSERT INTO behaviors (user_id, category, sub_type, description, intensity, quality, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
+  ).run(req.user.id, category, sub_type, description || '', intensity || null, quality);
 
   const behaviorId = behaviorResult.lastInsertRowid;
 
@@ -267,33 +169,31 @@ router.post('/', (req, res) => {
   const activityField = ACTIVITY_FIELD_BY_ATTR[attrField];
   db.prepare(`UPDATE characters SET ${activityField} = datetime('now') WHERE user_id = ?`).run(req.user.id);
 
-  // V2-F01 FB-05 - 更新常用行为快捷入口频次
+  // 更新常用行为快捷入口频次
   db.prepare(`
-    INSERT INTO user_behavior_shortcuts (user_id, category, sub_category, sub_type, use_count, last_used_at)
-    VALUES (?, ?, ?, ?, 1, datetime('now'))
+    INSERT INTO user_behavior_shortcuts (user_id, category, sub_type, use_count, last_used_at)
+    VALUES (?, ?, ?, 1, datetime('now'))
     ON CONFLICT(user_id, category, sub_type) DO UPDATE SET
       use_count = use_count + 1,
-      sub_category = excluded.sub_category,
       last_used_at = datetime('now')
-  `).run(req.user.id, category, foundBehavior.subCategory || null, sub_type);
+  `).run(req.user.id, category, sub_type);
 
   res.json({
     behavior: {
       id: behaviorId,
       category,
       sub_type,
-      sub_category: foundBehavior.subCategory,
       quality,
-      streak: streakCount,
     },
     item: { id: itemId, name: item.name, quality: item.quality, attribute_type: item.attribute_type, temp_value: item.temp_value },
+    cultivationStatus: cultivation,
   });
 });
 
 // V2-F01 FB-05 - 获取用户 Top5 常用行为快捷入口
 router.get('/shortcuts', (req, res) => {
   const shortcuts = db.prepare(`
-    SELECT category, sub_category, sub_type, use_count, last_used_at
+    SELECT category, sub_type, use_count, last_used_at
     FROM user_behavior_shortcuts
     WHERE user_id = ?
     ORDER BY use_count DESC, last_used_at DESC
@@ -305,7 +205,7 @@ router.get('/shortcuts', (req, res) => {
 // V2-F01 FB-05 - 获取用户最近一次上报行为，用于一键重复
 router.get('/last', (req, res) => {
   const last = db.prepare(`
-    SELECT category, sub_category, sub_type, duration, quantity, description
+    SELECT category, sub_type, intensity, description
     FROM behaviors
     WHERE user_id = ?
     ORDER BY completed_at DESC
@@ -356,19 +256,109 @@ router.get('/history', (req, res) => {
   res.json(grouped);
 });
 
-// V2-F07 - 本周行为数和道具数汇总
+// V2.5 - 周报数据（替换原 V2-F07 本周汇总）
 router.get('/weekly-summary', (req, res) => {
-  const rows = db.prepare(
-    `SELECT b.id, b.item_id
-     FROM behaviors b
-     WHERE b.user_id = ?
-       AND b.completed_at >= datetime('now', 'localtime', 'weekday 0', '-7 days')`
-  ).all(req.user.id);
+  const userId = req.user.id;
 
-  const behavior_count = rows.length;
-  const item_count = rows.filter(r => r.item_id !== null).length;
+  // 计算本周范围：周日到周六
+  // strftime('%w') 返回 0=周日, 1=周一, ..., 6=周六
+  // 如果今天是周日(0)，week_start = 今天；否则 week_start = 上一个周日
+  const weekRange = db.prepare(`
+    SELECT
+      date('now', 'localtime', '-' || strftime('%w', 'now', 'localtime') || ' days') AS week_start,
+      date('now', 'localtime', '-' || strftime('%w', 'now', 'localtime') || ' days', '+6 days') AS week_end
+  `).get();
 
-  res.json({ behavior_count, item_count });
+  const { week_start, week_end } = weekRange;
+
+  // 1. behavior_count + item_count（向后兼容）
+  const counts = db.prepare(`
+    SELECT
+      COUNT(*) AS behavior_count,
+      COUNT(item_id) AS item_count
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+  `).get(userId, week_start, week_end);
+
+  // 2. active_days：本周有记录的不同日期数
+  const activeDaysRow = db.prepare(`
+    SELECT COUNT(DISTINCT date(completed_at, 'localtime')) AS active_days
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+  `).get(userId, week_start, week_end);
+
+  // 3. category_distribution：按 category 分组计数，降序，最多 5 条
+  const category_distribution = db.prepare(`
+    SELECT category, COUNT(*) AS count
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+    GROUP BY category
+    ORDER BY count DESC
+    LIMIT 5
+  `).all(userId, week_start, week_end);
+
+  // 4. quality_distribution：按 quality 分组计数
+  const qualityRows = db.prepare(`
+    SELECT quality, COUNT(*) AS count
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+    GROUP BY quality
+  `).all(userId, week_start, week_end);
+
+  const quality_distribution = {};
+  qualityRows.forEach((r) => { quality_distribution[r.quality] = r.count; });
+
+  // 5. streak：从今天往前数连续有记录的天数
+  // 先检查今天是否有记录
+  const todayStr = db.prepare(`SELECT date('now', 'localtime') AS today`).get().today;
+  const hasTodayRow = db.prepare(`
+    SELECT COUNT(*) AS cnt
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') = ?
+  `).get(userId, todayStr);
+  const hasToday = hasTodayRow.cnt > 0;
+
+  // 获取所有有记录的日期（降序），从起始日开始往前数连续天数
+  const startDate = hasToday ? todayStr : db.prepare(`SELECT date('now', 'localtime', '-1 day') AS d`).get().d;
+  const activeDates = db.prepare(`
+    SELECT DISTINCT date(completed_at, 'localtime') AS d
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') <= ?
+    ORDER BY d DESC
+    LIMIT 365
+  `).all(userId, startDate);
+
+  let streak = 0;
+  let expectedDate = startDate;
+  for (const row of activeDates) {
+    if (row.d === expectedDate) {
+      streak++;
+      // 计算前一天
+      expectedDate = db.prepare(`SELECT date(?, '-1 day') AS d`).get(expectedDate).d;
+    } else {
+      break;
+    }
+  }
+
+  const streak_note = (!hasToday && streak > 0) ? '截至昨日' : null;
+
+  res.json({
+    week_start,
+    week_end,
+    behavior_count: counts.behavior_count,
+    item_count: counts.item_count,
+    active_days: activeDaysRow.active_days,
+    category_distribution,
+    quality_distribution,
+    streak,
+    streak_note,
+  });
 });
 
 // GET /api/behavior/family — get family behavior feed

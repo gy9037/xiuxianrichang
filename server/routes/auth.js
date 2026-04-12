@@ -39,7 +39,7 @@ router.post('/register', (req, res) => {
   const passwordHash = bcrypt.hashSync(password, 10);
 
   const result = db.prepare(
-    'INSERT INTO users (family_id, username, password_hash, name) VALUES (?, ?, ?, ?)'
+    "INSERT INTO users (family_id, username, password_hash, name, status) VALUES (?, ?, ?, ?, '居家')"
   ).run(family.id, username, passwordHash, name);
 
   const userId = result.lastInsertRowid;

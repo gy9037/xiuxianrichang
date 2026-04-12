@@ -15,11 +15,18 @@ function daysBetween(dateStr, now) {
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
-// V2-F04 FB-03 - 非正常状态缓冲期从15天延长到30天
-function getDailyDecay(inactiveDays, userStatus = '正常') {
+// V2-F04 FB-03 - 非居家状态缓冲期从15天延长到30天
+function getDailyDecay(inactiveDays, userStatus = '居家', bufferAdjust = 0) {
   // Never-active attributes should not decay.
   if (inactiveDays === 9999) return 0;
-  const buffer = (userStatus && userStatus !== '正常') ? 30 : 15; // V2-F04 FB-03
+  let buffer = (userStatus && userStatus !== '居家') ? 30 : 15;
+
+  // 修炼状态缓冲调整：非居家状态不叠加负面效果
+  if (userStatus === '居家' && bufferAdjust < 0) {
+    buffer += bufferAdjust;
+    buffer = Math.max(buffer, 5);
+  }
+
   if (inactiveDays <= buffer) return 0;
   if (inactiveDays <= buffer + 7) return 0.1;
   if (inactiveDays <= buffer + 14) return 0.2;
@@ -27,8 +34,8 @@ function getDailyDecay(inactiveDays, userStatus = '正常') {
 }
 
 // Calculate decay for a character, return updated attribute values
-// V2-F04 FB-03 - 传入用户状态
-function calculateDecay(character, now = new Date(), userStatus = '正常') {
+// V2-F04 FB-03 - 传入用户状态和修炼状态缓冲调整
+function calculateDecay(character, now = new Date(), userStatus = '居家', bufferAdjust = 0) {
   const updates = {};
   let hasDecay = false;
 
@@ -37,7 +44,7 @@ function calculateDecay(character, now = new Date(), userStatus = '正常') {
     const lastActivity = character[ACTIVITY_FIELDS[i]];
     const days = daysBetween(lastActivity, now);
     if (days === 9999) continue;
-    const decay = getDailyDecay(days, userStatus); // V2-F04 FB-03
+    const decay = getDailyDecay(days, userStatus, bufferAdjust);
 
     if (decay > 0 && character[attr] > 0) {
       const newVal = Math.max(0, character[attr] - decay);
@@ -51,10 +58,14 @@ function calculateDecay(character, now = new Date(), userStatus = '正常') {
 
 // Get decay status for display
 // V2-F04 FB-03
-function getDecayStatus(character, now = new Date(), userStatus = '正常') {
+function getDecayStatus(character, now = new Date(), userStatus = '居家', bufferAdjust = 0) {
   const statuses = [];
   const attrNames = { physique: '体魄', comprehension: '悟性', willpower: '心性', dexterity: '灵巧', perception: '神识' };
-  const buffer = (userStatus && userStatus !== '正常') ? 30 : 15; // V2-F04 FB-03
+  let buffer = (userStatus && userStatus !== '居家') ? 30 : 15;
+  if (userStatus === '居家' && bufferAdjust < 0) {
+    buffer += bufferAdjust;
+    buffer = Math.max(buffer, 5);
+  }
 
   for (let i = 0; i < ATTR_FIELDS.length; i++) {
     const attr = ATTR_FIELDS[i];
@@ -86,7 +97,7 @@ function getDecayStatus(character, now = new Date(), userStatus = '正常') {
       name: attrNames[attr],
       status,
       inactiveDays: days === 9999 ? null : days,
-      dailyDecay: getDailyDecay(days, userStatus), // V2-F04 FB-03
+      dailyDecay: getDailyDecay(days, userStatus, bufferAdjust),
       daysUntilDecay: daysUntilDecay > 0 ? daysUntilDecay : 0,
     });
   }

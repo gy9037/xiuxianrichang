@@ -16,34 +16,25 @@ const CATEGORY_TO_ATTR = {
   '社交互助': 'perception',
 };
 
-// Determine quality based on template and input
-function determineQuality(template, { duration, quantity, streakCount }) {
-  switch (template) {
-    case 'duration':
-      if (!duration) return '凡品';
-      if (duration > 60) return '极品';
-      if (duration > 30) return '上品';
-      if (duration > 15) return '良品';
-      return '凡品';
+// Determine quality by probability
+function determineQuality(category, intensity, cultivationDropBonus = 0) {
+  let goodRate = 0.2; // 默认 20% 良品
 
-    case 'quantity':
-      // quantity is a multiplier of base amount (pre-calculated by caller)
-      if (!quantity) return '凡品';
-      if (quantity >= 5) return '极品';
-      if (quantity >= 3) return '上品';
-      if (quantity >= 2) return '良品';
-      return '凡品';
-
-    case 'checkin':
-      if (!streakCount) return '凡品';
-      if (streakCount >= 14) return '极品';
-      if (streakCount >= 7) return '上品';
-      if (streakCount >= 3) return '良品';
-      return '凡品';
-
-    default:
-      return '凡品';
+  if (category === '身体健康' && intensity) {
+    const rateMap = {
+      热身: 0.10,
+      低强度: 0.20,
+      高强度: 0.40,
+      拉伸: 0.15,
+    };
+    goodRate = rateMap[intensity] ?? 0.20;
   }
+
+  // 修炼状态掉率加成
+  goodRate += cultivationDropBonus;
+  goodRate = Math.min(goodRate, 0.95);
+
+  return Math.random() < goodRate ? '良品' : '凡品';
 }
 
 // Generate a random item for a behavior

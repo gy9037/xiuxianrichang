@@ -3,9 +3,11 @@ const { db } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const { checkPromotion, getTotalAttrs, getRealmByName } = require('../services/realm');
 const { calculateDecay, getDecayStatus } = require('../services/decay');
+const { getCultivationStatus } = require('../services/cultivation');
 
 const router = express.Router();
 router.use(authMiddleware);
+const VALID_USER_STATUSES = new Set(['居家', '生病', '出差']);
 const ATTR_FIELDS = ['physique', 'comprehension', 'willpower', 'dexterity', 'perception'];
 // V2-F10 — 成就定义（硬编码，无需数据库表）
 const ACHIEVEMENTS = [
@@ -73,6 +75,28 @@ function getRecentTrend(userId) {
   return { days, byAttribute };
 }
 
+function withNextLevelHint(status) {
+  let nextLevelHint = null;
+  if (status.level === '停滞') {
+    nextLevelHint = '上报 1 次行为即可脱离停滞';
+  } else if (status.level === '懈怠') {
+    const needDays = Math.max(0, 4 - status.activeDays);
+    nextLevelHint = needDays > 0 ? `再活跃 ${needDays} 天即可达到稳修` : null;
+  } else if (status.level === '稳修') {
+    const needDays = Math.max(0, 6 - status.activeDays);
+    const needCats = Math.max(0, 3 - status.activeCategories);
+    const hints = [];
+    if (needDays > 0) hints.push(`再活跃 ${needDays} 天`);
+    if (needCats > 0) hints.push(`再覆盖 ${needCats} 个类别`);
+    nextLevelHint = hints.length > 0 ? `${hints.join('，')}即可达到精进` : null;
+  }
+  return { ...status, nextLevelHint };
+}
+
+function normalizeUserStatus(status) {
+  return VALID_USER_STATUSES.has(status) ? status : '居家';
+}
+
 // GET /api/character — get current user's character
 router.get('/', (req, res) => {
   const character = db.prepare(
@@ -84,11 +108,11 @@ router.get('/', (req, res) => {
 
   // V2-F04 FB-03 - 获取用户状态传入衰退计算
   const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
-  // V2-F04 FB-03
-  const userStatus = userRow?.status || '正常';
+  const userStatus = normalizeUserStatus(userRow?.status);
+  const cultivationStatus = withNextLevelHint(getCultivationStatus(req.user.id));
 
   // Apply decay
-  const { updates, hasDecay } = calculateDecay(character, new Date(), userStatus); // V2-F04 FB-03
+  const { updates, hasDecay } = calculateDecay(character, new Date(), userStatus, cultivationStatus.bufferAdjust);
   if (hasDecay) {
     const safeEntries = Object.entries(updates).filter(([k]) => SAFE_ATTR_FIELD_SET.has(k));
     if (safeEntries.length > 0) {
@@ -101,7 +125,7 @@ router.get('/', (req, res) => {
 
   const realm = getRealmByName(character.realm_stage);
   const promotion = checkPromotion(character);
-  const decayStatus = getDecayStatus(character, new Date(), userStatus); // V2-F04 FB-03
+  const decayStatus = getDecayStatus(character, new Date(), userStatus, cultivationStatus.bufferAdjust);
   const tags = parseTags(character.tags);
   const trend = getRecentTrend(req.user.id);
 
@@ -116,12 +140,13 @@ router.get('/', (req, res) => {
       realm_stage: character.realm_stage,
       attr_cap: realm ? realm.attrCap : 3,
       total_attrs: getTotalAttrs(character),
-      status: userStatus, // V2-F04 FB-03 - 返回用户状态
+      status: userStatus,
     },
     tags,
     trend,
     promotion,
     decayStatus,
+    cultivationStatus,
   });
 });
 
@@ -161,12 +186,17 @@ router.get('/trend', (req, res) => {
 // V2-F04 FB-03 - 切换用户状态
 router.post('/status', (req, res) => {
   const { status } = req.body;
-  const VALID_STATUSES = ['正常', '生病', '出差', '休假'];
+  const VALID_STATUSES = ['居家', '生病', '出差'];
   if (!VALID_STATUSES.includes(status)) {
-    return res.status(400).json({ error: '无效的状态，可选：正常/生病/出差/休假' });
+    return res.status(400).json({ error: '无效的状态，可选：居家/生病/出差' });
   }
   db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, req.user.id);
   res.json({ success: true, status });
+});
+
+router.get('/cultivation-status', (req, res) => {
+  const status = withNextLevelHint(getCultivationStatus(req.user.id));
+  res.json(status);
 });
 
 // POST /api/character/promote — attempt realm promotion

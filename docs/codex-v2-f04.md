@@ -1,188 +1,389 @@
-# Codex Task: V2-F04 BUFF状态系统（最小版本）
+# Codex 任务指令：V2-F04 BUFF状态系统（最小版本）
 
-## 溯源标注
-所有新增/修改代码需注释 `// V2-F04 FB-03`
+> 溯源：FB-03（属性衰退机制太隐性，出差/生病后回来发现属性掉了体验差）
+> 所有新增/修改代码行尾注释 `// V2-F04 FB-03`
 
 ---
 
-## 任务一：`server/db.js`
+## 改动 1：`server/db.js` — users 表新增 status 字段
 
-在 `initDB()` 的 `db.exec(...)` SQL 字符串中，`users` 表建表语句末尾加字段，或在 `db.exec(...)` 之后单独执行 ALTER：
+在 `initDB()` 函数中，找到已有的 `ALTER TABLE behaviors ADD COLUMN sub_category` 那段 try/catch **之后**，追加：
 
 ```js
-// V2-F04 FB-03 - 用户状态字段（正常/生病/出差/休假）
-try {
-  db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT '正常'`);
-} catch (e) { /* 列已存在，忽略 */ }
+  // V2-F04 FB-03 - 用户状态字段（正常/生病/出差/休假）
+  try { // V2-F04 FB-03
+    db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT '正常'`); // V2-F04 FB-03
+  } catch (e) { // V2-F04 FB-03
+    // V2-F04 FB-03 - 列已存在，忽略
+  } // V2-F04 FB-03
+```
+
+插入位置：在 `// Seed default family if none exists` 注释行之前。
+
+---
+
+## 改动 2：`server/routes/character.js` — 接口改动
+
+### 2a. GET /api/character 返回 status 字段
+
+在现有的 `router.get('/')` 处理函数中，找到查询语句：
+
+```js
+  const character = db.prepare(
+    `SELECT c.*, u.tags
+     FROM characters c JOIN users u ON c.user_id = u.id
+     WHERE c.user_id = ?`
+  ).get(req.user.id);
+```
+
+替换为：
+
+```js
+  const character = db.prepare( // V2-F04 FB-03
+    `SELECT c.*, u.tags, u.status
+     FROM characters c JOIN users u ON c.user_id = u.id
+     WHERE c.user_id = ?`
+  ).get(req.user.id); // V2-F04 FB-03
+```
+
+然后在 `res.json({...})` 的返回对象中，在 `decayStatus,` 行之后追加：
+
+```js
+    status: character.status || '正常', // V2-F04 FB-03
+```
+
+完整的 res.json 应变为：
+
+```js
+  res.json({
+    character: {
+      id: character.id,
+      physique: character.physique,
+      comprehension: character.comprehension,
+      willpower: character.willpower,
+      dexterity: character.dexterity,
+      perception: character.perception,
+      realm_stage: character.realm_stage,
+      attr_cap: realm ? realm.attrCap : 3,
+      total_attrs: getTotalAttrs(character),
+    },
+    tags,
+    trend,
+    promotion,
+    decayStatus,
+    status: character.status || '正常', // V2-F04 FB-03
+  });
+```
+
+### 2b. 衰退计算传入 status
+
+在同一个 `router.get('/')` 中，找到：
+
+```js
+  const { updates, hasDecay } = calculateDecay(character);
+```
+
+替换为：
+
+```js
+  const userStatus = character.status || '正常'; // V2-F04 FB-03
+  const { updates, hasDecay } = calculateDecay(character, undefined, userStatus); // V2-F04 FB-03
+```
+
+同样，找到：
+
+```js
+  const decayStatus = getDecayStatus(character);
+```
+
+替换为：
+
+```js
+  const decayStatus = getDecayStatus(character, undefined, userStatus); // V2-F04 FB-03
+```
+
+### 2c. 新增 POST /api/character/status 接口
+
+在 `router.post('/promote', ...)` 路由**之前**，插入以下完整路由：
+
+```js
+// V2-F04 FB-03 - 用户状态切换
+const VALID_STATUSES = ['正常', '生病', '出差', '休假']; // V2-F04 FB-03
+
+// V2-F04 FB-03
+router.post('/status', (req, res) => { // V2-F04 FB-03
+  const { status } = req.body; // V2-F04 FB-03
+  if (!status || !VALID_STATUSES.includes(status)) { // V2-F04 FB-03
+    return res.status(400).json({ error: `状态无效，可选值：${VALID_STATUSES.join('、')}` }); // V2-F04 FB-03
+  } // V2-F04 FB-03
+  db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, req.user.id); // V2-F04 FB-03
+  res.json({ success: true, status }); // V2-F04 FB-03
+}); // V2-F04 FB-03
 ```
 
 ---
 
-## 任务二：`server/routes/character.js`
+## 改动 3：`server/services/decay.js` — 状态感知的缓冲期
 
-### 改动 A：GET /api/character 返回 status 字段
+### 3a. 修改 getDailyDecay 函数
 
-找到 `router.get('/')` 中的 `res.json({...})` 调用，在 `character` 对象中加入 status：
-
-```js
-// V2-F04 FB-03 - 返回用户状态
-character: {
-  ...原有字段...,
-  status: db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id)?.status || '正常',
-},
-```
-
-### 改动 B：新增 POST /api/character/status 接口
-
-在 `router.post('/promote', ...)` 之前插入：
+将现有的：
 
 ```js
-// V2-F04 FB-03 - 切换用户状态
-router.post('/status', (req, res) => {
-  const { status } = req.body;
-  const VALID_STATUSES = ['正常', '生病', '出差', '休假'];
-  if (!VALID_STATUSES.includes(status)) {
-    return res.status(400).json({ error: '无效的状态，可选：正常/生病/出差/休假' });
-  }
-  db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, req.user.id);
-  res.json({ success: true, status });
-});
-```
-
----
-
-## 任务三：`server/services/decay.js`
-
-### 改动：getDailyDecay 接受 userStatus 参数，非正常状态缓冲期延长到30天
-
-找到 `getDailyDecay(inactiveDays)` 函数，修改为：
-
-```js
-// V2-F04 FB-03 - 非正常状态缓冲期从15天延长到30天
-function getDailyDecay(inactiveDays, userStatus = '正常') {
+function getDailyDecay(inactiveDays) {
+  // Never-active attributes should not decay.
   if (inactiveDays === 9999) return 0;
-  const buffer = (userStatus && userStatus !== '正常') ? 30 : 15; // V2-F04 FB-03
-  if (inactiveDays <= buffer) return 0;
-  if (inactiveDays <= buffer + 7) return 0.1;
-  if (inactiveDays <= buffer + 14) return 0.2;
+  if (inactiveDays <= 15) return 0;
+  if (inactiveDays <= 22) return 0.1;
+  if (inactiveDays <= 29) return 0.2;
   return 0.3;
 }
 ```
 
-找到 `calculateDecay(character, now)` 函数，修改调用处传入 userStatus：
+替换为：
 
 ```js
-// V2-F04 FB-03 - 传入用户状态
-function calculateDecay(character, now = new Date(), userStatus = '正常') {
-  ...
-  const decay = getDailyDecay(days, userStatus); // V2-F04 FB-03
-  ...
+function getDailyDecay(inactiveDays, bufferDays = 15) { // V2-F04 FB-03
+  // Never-active attributes should not decay.
+  if (inactiveDays === 9999) return 0; // V2-F04 FB-03
+  if (inactiveDays <= bufferDays) return 0; // V2-F04 FB-03
+  if (inactiveDays <= bufferDays + 7) return 0.1; // V2-F04 FB-03
+  if (inactiveDays <= bufferDays + 14) return 0.2; // V2-F04 FB-03
+  return 0.3; // V2-F04 FB-03
 }
 ```
 
-同样修改 `getDecayStatus(character, now)` 函数签名和内部调用：
+### 3b. 修改 calculateDecay 函数
+
+将现有的：
 
 ```js
-// V2-F04 FB-03
-function getDecayStatus(character, now = new Date(), userStatus = '正常') {
-  ...
-  // getDailyDecay 调用处传入 userStatus
-  // daysUntilDecay 计算也需要用 buffer 变量
-  const buffer = (userStatus && userStatus !== '正常') ? 30 : 15; // V2-F04 FB-03
-  let daysUntilDecay = buffer - days;
-  ...
-}
+function calculateDecay(character, now = new Date()) {
 ```
 
-在 `character.js` 的 `router.get('/')` 中，获取 userStatus 并传入：
+替换为：
 
 ```js
-// V2-F04 FB-03 - 获取用户状态传入衰退计算
-const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
-const userStatus = userRow?.status || '正常';
-const { updates, hasDecay } = calculateDecay(character, new Date(), userStatus);
-...
-const decayStatus = getDecayStatus(character, new Date(), userStatus);
+function calculateDecay(character, now = new Date(), userStatus = '正常') { // V2-F04 FB-03
+```
+
+在函数内部，找到：
+
+```js
+    const decay = getDailyDecay(days);
+```
+
+替换为：
+
+```js
+    const bufferDays = userStatus !== '正常' ? 30 : 15; // V2-F04 FB-03
+    const decay = getDailyDecay(days, bufferDays); // V2-F04 FB-03
+```
+
+### 3c. 修改 getDecayStatus 函数
+
+将现有的：
+
+```js
+function getDecayStatus(character, now = new Date()) {
+```
+
+替换为：
+
+```js
+function getDecayStatus(character, now = new Date(), userStatus = '正常') { // V2-F04 FB-03
+```
+
+在函数内部，找到：
+
+```js
+    let daysUntilDecay = 15 - days;
+```
+
+替换为：
+
+```js
+    const bufferDays = userStatus !== '正常' ? 30 : 15; // V2-F04 FB-03
+    let daysUntilDecay = bufferDays - days; // V2-F04 FB-03
+```
+
+找到状态判断逻辑：
+
+```js
+    if (days > 29) status = '虚弱III';
+    else if (days > 22) status = '虚弱II';
+    else if (days > 15) status = '虚弱I';
+    else if (days > 12) status = '即将衰退';
+```
+
+替换为：
+
+```js
+    if (days > bufferDays + 14) status = '虚弱III'; // V2-F04 FB-03
+    else if (days > bufferDays + 7) status = '虚弱II'; // V2-F04 FB-03
+    else if (days > bufferDays) status = '虚弱I'; // V2-F04 FB-03
+    else if (days > bufferDays - 3) status = '即将衰退'; // V2-F04 FB-03
 ```
 
 ---
 
-## 任务四：`public/js/pages/home.js`
+## 改动 4：`public/js/pages/home.js` — 首页状态展示与切换
 
-### 改动 A：render() 中展示状态badge并支持点击切换
+### 4a. 文件顶部新增状态常量
 
-在 `render()` 方法的 `container.innerHTML` 模板中，找到 `<div class="page-header">` 行，替换为：
+在现有的 `ATTR_ICONS` 常量之后，追加：
 
 ```js
-// V2-F04 FB-03 - 顶部展示用户名 + 状态badge
-<div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
-  <span>${e(API.user.name)}</span>
-  <span class="status-badge status-${e(character.status || '正常')}"
-    onclick="HomePage.showStatusPicker()"
-    style="cursor:pointer;font-size:12px;padding:4px 10px;border-radius:12px;background:var(--bg-card-light)">
-    ${e(character.status || '正常')} ▾
-  </span>
-</div>
+// V2-F04 FB-03 - 状态配置
+const STATUS_CONFIG = { // V2-F04 FB-03
+  '正常': { icon: '✅', label: '正常', tip: '' }, // V2-F04 FB-03
+  '生病': { icon: '🤒', label: '生病', tip: '生病期间衰退缓冲延长至30天，好好休息' }, // V2-F04 FB-03
+  '出差': { icon: '✈️', label: '出差', tip: '出差期间衰退缓冲延长至30天，安心工作' }, // V2-F04 FB-03
+  '休假': { icon: '🏖️', label: '休假', tip: '休假期间衰退缓冲延长至30天，尽情放松' }, // V2-F04 FB-03
+}; // V2-F04 FB-03
 ```
 
-### 改动 B：新增 showStatusPicker() 方法
+### 4b. HomePage 对象新增 changeStatus 方法
 
-在 `HomePage` 对象末尾插入：
+在 `HomePage` 对象的 `logout()` 方法**之前**，插入：
 
 ```js
-// V2-F04 FB-03 - 状态切换弹窗
-showStatusPicker() {
-  const existing = document.getElementById('status-picker-modal');
-  if (existing) existing.remove();
+  // V2-F04 FB-03 - 状态切换弹窗
+  async changeStatus() { // V2-F04 FB-03
+    const current = this.data.status || '正常'; // V2-F04 FB-03
+    const statuses = Object.keys(STATUS_CONFIG); // V2-F04 FB-03
+    const options = statuses.map(s => { // V2-F04 FB-03
+      const cfg = STATUS_CONFIG[s]; // V2-F04 FB-03
+      const selected = s === current ? ' ✓' : ''; // V2-F04 FB-03
+      return `${cfg.icon} ${cfg.label}${selected}`; // V2-F04 FB-03
+    }); // V2-F04 FB-03
 
-  const STATUS_CONFIG = {
-    '正常': { icon: '✨', desc: '日常修炼，正常计算衰退' },
-    '生病': { icon: '🤒', desc: '身体欠佳，衰退缓冲延长至30天' },
-    '出差': { icon: '✈️', desc: '外出奔波，衰退缓冲延长至30天' },
-    '休假': { icon: '🏖️', desc: '休养生息，衰退缓冲延长至30天' },
-  };
+    // V2-F04 FB-03 - 使用简单 prompt 选择（后续可升级为自定义弹窗）
+    const input = prompt( // V2-F04 FB-03
+      `当前状态：${STATUS_CONFIG[current].icon} ${current}\n\n` + // V2-F04 FB-03
+      `输入数字切换状态：\n` + // V2-F04 FB-03
+      options.map((o, i) => `${i + 1}. ${o}`).join('\n') // V2-F04 FB-03
+    ); // V2-F04 FB-03
+    if (!input) return; // V2-F04 FB-03
 
-  const modal = document.createElement('div');
-  modal.id = 'status-picker-modal';
-  modal.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:24px`;
-  modal.innerHTML = `
-    <div style="background:var(--bg-card);border-radius:var(--radius);padding:24px;max-width:320px;width:100%">
-      <div style="font-size:16px;font-weight:700;margin-bottom:16px">切换状态</div>
-      ${Object.entries(STATUS_CONFIG).map(([s, cfg]) => `
-        <div onclick="HomePage.setStatus('${s}')"
-          style="padding:12px;border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--bg-card-light);display:flex;align-items:center;gap:12px">
-          <span style="font-size:24px">${cfg.icon}</span>
-          <div>
-            <div style="font-weight:600">${s}</div>
-            <div style="font-size:12px;color:var(--text-dim)">${cfg.desc}</div>
-          </div>
-        </div>
-      `).join('')}
-      <button class="btn btn-secondary" style="width:100%;margin-top:8px"
-        onclick="document.getElementById('status-picker-modal').remove()">取消</button>
-    </div>
-  `;
-  document.body.appendChild(modal);
-},
+    const idx = parseInt(input, 10) - 1; // V2-F04 FB-03
+    if (idx < 0 || idx >= statuses.length) { // V2-F04 FB-03
+      App.toast('无效选择', 'error'); // V2-F04 FB-03
+      return; // V2-F04 FB-03
+    } // V2-F04 FB-03
 
-// V2-F04 FB-03 - 提交状态切换
-async setStatus(status) {
-  try {
-    await API.post('/character/status', { status });
-    document.getElementById('status-picker-modal')?.remove();
-    App.toast(`状态已切换为：${status}`, 'success');
-    this.load();
-  } catch (e) {
-    App.toast(e.message, 'error');
-  }
-},
+    const newStatus = statuses[idx]; // V2-F04 FB-03
+    if (newStatus === current) return; // V2-F04 FB-03
+
+    try { // V2-F04 FB-03
+      await API.post('/character/status', { status: newStatus }); // V2-F04 FB-03
+      App.toast(`状态已切换为：${STATUS_CONFIG[newStatus].icon} ${newStatus}`, 'success'); // V2-F04 FB-03
+      this.load(); // V2-F04 FB-03
+    } catch (e) { // V2-F04 FB-03
+      App.toast(e.message, 'error'); // V2-F04 FB-03
+    } // V2-F04 FB-03
+  }, // V2-F04 FB-03
+```
+
+### 4c. render() 方法中展示状态 badge 和提示文案
+
+在 `render()` 方法中，找到：
+
+```js
+    const { character, promotion, decayStatus } = this.data;
+```
+
+替换为：
+
+```js
+    const { character, promotion, decayStatus, status } = this.data; // V2-F04 FB-03
+    const currentStatus = status || '正常'; // V2-F04 FB-03
+    const statusCfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['正常']; // V2-F04 FB-03
+```
+
+然后在 `container.innerHTML` 模板中，找到：
+
+```js
+      <div class="page-header">${e(API.user.name)}</div>
+```
+
+替换为：
+
+```js
+      <div class="page-header">
+        ${e(API.user.name)}
+        <span class="status-badge" onclick="HomePage.changeStatus()" title="点击切换状态">
+          ${statusCfg.icon} ${e(statusCfg.label)}
+        </span>
+      </div>
+      ${statusCfg.tip ? `<div class="status-tip">${e(statusCfg.tip)}</div>` : ''}
+```
+
+注意：以上模板中每行末尾在实际代码中加 `<!-- V2-F04 FB-03 -->` 注释。
+
+### 4d. CSS 样式（追加到 `public/css/style.css` 末尾）
+
+```css
+/* V2-F04 FB-03 - 状态 badge */
+.status-badge { /* V2-F04 FB-03 */
+  display: inline-block; /* V2-F04 FB-03 */
+  font-size: 13px; /* V2-F04 FB-03 */
+  padding: 2px 10px; /* V2-F04 FB-03 */
+  border-radius: 12px; /* V2-F04 FB-03 */
+  background: var(--bg-card, #f5f5f5); /* V2-F04 FB-03 */
+  cursor: pointer; /* V2-F04 FB-03 */
+  vertical-align: middle; /* V2-F04 FB-03 */
+  margin-left: 8px; /* V2-F04 FB-03 */
+}
+
+.status-badge:active { /* V2-F04 FB-03 */
+  opacity: 0.7; /* V2-F04 FB-03 */
+}
+
+.status-tip { /* V2-F04 FB-03 */
+  font-size: 12px; /* V2-F04 FB-03 */
+  color: var(--text-dim, #999); /* V2-F04 FB-03 */
+  text-align: center; /* V2-F04 FB-03 */
+  padding: 4px 16px 8px; /* V2-F04 FB-03 */
+}
 ```
 
 ---
 
 ## 验收标准
 
-1. GET /api/character 返回数据中包含 `status` 字段
-2. POST /api/character/status 可切换状态，非法值返回400
-3. 生病/出差/休假状态下，`getDailyDecay` 缓冲期为30天（正常状态为15天）
-4. 首页顶部显示状态badge，点击弹出状态选择弹窗，切换后页面刷新
+### AC-1：数据库迁移
+- [ ] 服务启动后，`users` 表包含 `status` 字段，默认值为 `'正常'`
+- [ ] 已有用户数据不受影响，status 为 NULL 时前后端均 fallback 为 `'正常'`
+
+### AC-2：状态切换接口
+- [ ] `POST /api/character/status` body `{ "status": "生病" }` → 返回 `{ success: true, status: "生病" }`
+- [ ] 传入非法值（如 `"死亡"`）→ 返回 400 错误
+- [ ] 无需管理员权限，普通用户即可切换自己的状态
+
+### AC-3：GET /api/character 返回 status
+- [ ] 响应 JSON 顶层包含 `status` 字段，值为当前用户状态
+
+### AC-4：衰退缓冲期联动
+- [ ] 用户状态为「正常」时，缓冲期 = 15天（行为不变）
+- [ ] 用户状态为「生病/出差/休假」时，缓冲期 = 30天
+- [ ] 衰退阶梯（虚弱I/II/III）相对缓冲期偏移，间隔仍为 7天
+- [ ] `getDecayStatus` 返回的 `daysUntilDecay` 和状态标签与新缓冲期一致
+
+### AC-5：首页展示
+- [ ] 首页用户名旁显示状态 badge（图标+文字），可点击
+- [ ] 点击 badge 弹出选择，可切换为 4 种状态之一
+- [ ] 非「正常」状态下，badge 下方显示对应提示文案
+- [ ] 切换后页面自动刷新，badge 和提示文案更新
+
+### AC-6：溯源注释
+- [ ] 所有新增/修改的代码行包含 `// V2-F04 FB-03` 注释
+
+---
+
+## 不做的事（明确排除）
+
+- 不做状态专属行为规则联动（留待后续版本）
+- 不做状态自动切换（如定时恢复正常）
+- 不做状态切换历史记录
+- 不做管理员批量设置状态

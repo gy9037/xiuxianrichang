@@ -54,7 +54,7 @@ function initDB() {
       category TEXT NOT NULL,
       sub_type TEXT NOT NULL,
       description TEXT DEFAULT '',
-      quality_template TEXT NOT NULL,
+      quality_template TEXT DEFAULT NULL,
       duration INTEGER DEFAULT NULL,
       quantity INTEGER DEFAULT NULL,
       quality TEXT NOT NULL,
@@ -174,12 +174,70 @@ function initDB() {
     // V2-F01 FB-05 - 列已存在，忽略
   }
 
-  // V2-F04 FB-03 - 用户状态字段（正常/生病/出差/休假）
+  // 行为简化 - 新增 intensity 字段
   try {
-    db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT '正常'`);
+    db.exec(`ALTER TABLE behaviors ADD COLUMN intensity TEXT DEFAULT NULL`);
   } catch (e) {
-    // V2-F04 FB-03 - 列已存在，忽略
+    // 列已存在，忽略
   }
+
+  // 放宽 quality_template 约束（SQLite 不支持 ALTER COLUMN，但新建表时已改为 DEFAULT NULL）
+  // 对于已有数据库，通过 pragma 检查后重建表或忽略（已有数据的 quality_template 都有值，不会出问题）
+  try {
+    const qualityTemplateCol = db.prepare("PRAGMA table_info(behaviors)").all()
+      .find(col => col.name === 'quality_template');
+    if (qualityTemplateCol && qualityTemplateCol.notnull === 1) {
+      db.pragma('foreign_keys = OFF');
+      db.exec(`
+        BEGIN TRANSACTION;
+
+        CREATE TABLE IF NOT EXISTS behaviors_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          category TEXT NOT NULL,
+          sub_type TEXT NOT NULL,
+          description TEXT DEFAULT '',
+          quality_template TEXT DEFAULT NULL,
+          duration INTEGER DEFAULT NULL,
+          quantity INTEGER DEFAULT NULL,
+          quality TEXT NOT NULL,
+          completed_at TEXT DEFAULT (datetime('now')),
+          item_id INTEGER DEFAULT NULL,
+          sub_category TEXT DEFAULT NULL,
+          intensity TEXT DEFAULT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        INSERT INTO behaviors_new (
+          id, user_id, category, sub_type, description, quality_template,
+          duration, quantity, quality, completed_at, item_id, sub_category, intensity
+        )
+        SELECT
+          id, user_id, category, sub_type, description, quality_template,
+          duration, quantity, quality, completed_at, item_id, sub_category, intensity
+        FROM behaviors;
+
+        DROP TABLE behaviors;
+        ALTER TABLE behaviors_new RENAME TO behaviors;
+
+        COMMIT;
+      `);
+      db.pragma('foreign_keys = ON');
+    }
+  } catch (e) {
+    db.pragma('foreign_keys = ON');
+  }
+
+  // 用户环境状态字段（居家/生病/出差）
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN status TEXT DEFAULT '居家'`);
+  } catch (e) {
+    // 列已存在，忽略
+  }
+
+  // 环境状态迁移：正常/休假 -> 居家
+  db.prepare("UPDATE users SET status = '居家' WHERE status = '正常'").run();
+  db.prepare("UPDATE users SET status = '居家' WHERE status = '休假'").run();
 
   // V2-F06 FB-06 — 行为表情互动表
   db.exec(`

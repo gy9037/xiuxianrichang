@@ -18,6 +18,8 @@ const WishPage = {
   character: null, // V2-F05 FB-04
   typeFilter: '全部',
   statusFilter: '全部',
+  submittingCreate: false, // V2.5 V25-015 - 创建防重复标志位
+  executing: false, // V2.5 V25-018 - 挑战防重复标志位
 
   async load() {
     try {
@@ -30,7 +32,7 @@ const WishPage = {
 
   // V2-F05 FB-04 - 计算胜算文案
   getOddsText(userPower, bossPower) {
-    if (!bossPower || bossPower <= 0) return { text: '胜算未知', color: 'var(--text-dim)' };
+    if (!bossPower || bossPower <= 0) return { text: '胜算未知（角色数据加载中…）', color: 'var(--text-dim)' };
     const ratio = userPower / bossPower;
     if (ratio >= 0.9) return { text: '胜算十成', color: 'var(--green)' };
     if (ratio >= 0.7) return { text: '胜算七成', color: 'var(--green)' };
@@ -42,19 +44,35 @@ const WishPage = {
   // V2-F05 FB-04 - 失败后差距分析和提升建议
   getDefeatAdvice(battle) {
     const ATTR_MAP = {
-      physique: { name: '体魄', category: '身体健康', advice: '多做运动类行为' },
-      comprehension: { name: '悟性', category: '学习', advice: '多做学习类行为' },
-      willpower: { name: '心性', category: '生活习惯', advice: '多做生活习惯类行为' },
-      dexterity: { name: '灵巧', category: '家务', advice: '多做家务类行为' },
-      perception: { name: '神识', category: '社交互助', advice: '多做社交互助类行为' },
+      physique: { name: '体魄', advice: '多做运动健身类行为' },
+      comprehension: { name: '悟性', advice: '多做学习成长类行为' },
+      willpower: { name: '心性', advice: '多做冥想/生活习惯类行为' },
+      dexterity: { name: '灵巧', advice: '多做家务/生活技能类行为' },
+      perception: { name: '神识', advice: '多做社交互助类行为' },
     };
     const boss = battle.boss;
+    const character = this.character;
     if (!boss) return '继续积累道具，再来挑战！';
 
     const attrs = ['physique', 'comprehension', 'willpower', 'dexterity', 'perception'];
-    const strongest = attrs.reduce((max, a) => (boss[a] > boss[max] ? a : max), attrs[0]);
-    const info = ATTR_MAP[strongest];
-    return `${info.name}方向差距最大，建议${info.advice}来提升战力。`;
+
+    // V2.5 V25-023 - 各属性数值对比 + 差距最大属性 + 具体建议
+    const comparisons = attrs.map((a) => {
+      const userVal = Number(character?.[a] || 0);
+      const bossVal = Number(boss[a] || 0);
+      const gap = bossVal - userVal;
+      return { key: a, userVal, bossVal, gap };
+    });
+
+    const maxGap = comparisons.reduce((max, c) => (c.gap > max.gap ? c : max), comparisons[0]);
+    const info = ATTR_MAP[maxGap.key];
+
+    const lines = comparisons.map((c) => {
+      const marker = c.key === maxGap.key ? ' ← 重点提升' : '';
+      return `${ATTR_MAP[c.key].name}：你 ${c.userVal.toFixed(1)} vs Boss ${c.bossVal.toFixed(1)}（差距 ${c.gap.toFixed(1)}）${marker}`;
+    });
+
+    return `${lines.join('\n')}\n\n${info.name}差距最大（${maxGap.gap.toFixed(1)}），建议${info.advice}来提升。`;
   },
 
   render() {
@@ -87,21 +105,27 @@ const WishPage = {
     const completed = filtered.filter(w => w.status === 'completed' || w.status === 'redeemed');
 
     container.innerHTML = `
-      <div class="page-header">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
         愿望池
-        <button class="btn btn-primary btn-small" style="float:right;width:auto;margin-top:2px" onclick="WishPage.openCreate()">许愿</button>
+        <button class="btn btn-primary btn-small" style="width:auto;flex-shrink:0" onclick="WishPage.openCreate()">许愿</button>
       </div>
 
       <div class="card">
-        <div class="card-title">筛选</div>
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">愿望类型</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          筛选
+          ${(this.typeFilter !== '全部' || this.statusFilter !== '全部') ? `
+            <button class="btn btn-small btn-secondary" style="font-size:11px"
+              onclick="WishPage.setTypeFilter('全部');WishPage.setStatusFilter('全部')">清除筛选</button>
+          ` : ''}
+        </div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:600">类型</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
           ${['全部', '单人', '团队'].map(t => `
             <button class="btn btn-small ${this.typeFilter === t ? 'btn-primary' : 'btn-secondary'}"
               onclick="WishPage.setTypeFilter('${t}')">${t}</button>
           `).join('')}
         </div>
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">愿望状态</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:600">状态</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${['全部', '待挑战', '进行中', '已完成', '已兑现'].map(s => `
             <button class="btn btn-small ${this.statusFilter === s ? 'btn-primary' : 'btn-secondary'}"
@@ -111,10 +135,11 @@ const WishPage = {
       </div>
 
       ${pending.length === 0 && completed.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-icon">🌟</div>
-          <div>还没有愿望</div>
-          <div style="font-size:13px;margin-top:8px">许下你的第一个愿望吧</div>
+        <div class="empty-state" style="padding:40px 16px">
+          <div class="empty-icon" style="font-size:48px">🌟</div>
+          <div style="font-size:16px;font-weight:600;margin-top:12px">还没有愿望</div>
+          <div style="font-size:14px;margin-top:8px;color:var(--text-dim)">许下你的第一个愿望吧</div>
+          <button class="btn btn-primary btn-small" style="margin-top:16px" onclick="WishPage.openCreate()">立即许愿</button>
         </div>
       ` : ''}
 
@@ -132,9 +157,20 @@ const WishPage = {
               Boss预估战力：${w.bossEstimate.min} ~ ${w.bossEstimate.max}
             </div>
           ` : ''}
-          ${w.type === '团队' && w.teamProgress ? `
+          ${w.type === '团队' ? `
             <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
-              ${w.teamProgress.map(m => `${e(m.name)}：${e(m.status)}`).join(' · ')}
+              ${Array.isArray(w.teamProgress) && w.teamProgress.length > 0
+                ? (() => {
+                    const visible = w.teamProgress.slice(0, 5);
+                    const hidden = w.teamProgress.slice(5);
+                    let html = visible.map(m => `${e(m.name)}：${e(m.status)}`).join(' · ');
+                    if (hidden.length > 0) {
+                      html += `<span id="team-hidden-${w.id}" style="display:none"> · ${hidden.map(m => `${e(m.name)}：${e(m.status)}`).join(' · ')}</span>`;
+                      html += ` <a href="javascript:void(0)" onclick="event.stopPropagation();document.getElementById('team-hidden-${w.id}').style.display='inline';this.remove()" style="color:var(--primary)">查看全部 (${w.teamProgress.length}人)</a>`;
+                    }
+                    return html;
+                  })()
+                : '团队进度加载中…'}
             </div>
           ` : ''}
           ${this.canChallenge(w) ? `
@@ -142,6 +178,7 @@ const WishPage = {
           ` : `
             <div style="font-size:12px;color:var(--text-dim)">
               ${(() => {
+                if (!API.user?.id) return '请先登录后挑战'; // V2.5 V25-065
                 if (w.type === '团队' && Array.isArray(w.teamProgress)) {
                   const self = w.teamProgress.find(m => m.id === API.user.id);
                   if (self?.status === '已通过') return '你已通过，等待其他成员';
@@ -185,6 +222,8 @@ const WishPage = {
   },
 
   canChallenge(wish) {
+    // V2.5 V25-065 - 未登录保护
+    if (!API.user?.id) return false;
     if (wish.status === 'completed' || wish.status === 'redeemed') return false;
     if (wish.type === '单人' && wish.target_user_id !== API.user.id) return false;
     if (wish.type === '团队' && Array.isArray(wish.teamProgress)) {
@@ -202,16 +241,13 @@ const WishPage = {
   renderCreate(container) {
     container.innerHTML = `
       <div class="page-header">
-        <span onclick="WishPage.closeCreate()" style="cursor:pointer">← </span>许下愿望
+        <button onclick="WishPage.closeCreate()" style="background:none;border:none;color:inherit;font-size:inherit;cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-right:4px">←</button>许下愿望
       </div>
       <div class="card">
         <div class="form-group">
           <label>愿望名称</label>
-          <input type="text" id="wish-name" placeholder="例：喝一杯奶茶">
-        </div>
-        <div class="form-group">
-          <label>愿望描述（可选）</label>
-          <textarea id="wish-desc" rows="2" placeholder="详细说明"></textarea>
+          <input type="text" id="wish-name" placeholder="例：喝一杯奶茶" maxlength="20">
+          <div style="text-align:right;font-size:11px;color:var(--text-dim)" id="wish-name-count">0/20</div>
         </div>
         <div class="form-group">
           <label>愿望类型</label>
@@ -223,7 +259,7 @@ const WishPage = {
         <div class="form-group">
           <label>难度评分（1-10）</label>
           <input type="range" id="wish-difficulty" min="1" max="10" value="3"
-            oninput="document.getElementById('diff-display').textContent=this.value"
+            oninput="document.getElementById('diff-display')?.textContent=this.value"
             style="width:100%;accent-color:var(--primary)">
           <div style="text-align:center;font-size:20px;font-weight:700;color:var(--gold)" id="diff-display">3</div>
           <!-- V2-F09 FB-07 - 难度参考锚点 -->
@@ -236,11 +272,33 @@ const WishPage = {
         </div>
         <div class="form-group">
           <label>现实奖励</label>
-          <input type="text" id="wish-reward" placeholder="打赢Boss后的奖励">
+          <input type="text" id="wish-reward" placeholder="打赢Boss后的奖励" maxlength="30">
+          <div style="text-align:right;font-size:11px;color:var(--text-dim)" id="wish-reward-count">0/30</div>
+        </div>
+        <div class="form-group">
+          <a href="javascript:void(0)" id="wish-desc-toggle" style="font-size:13px;color:var(--primary)"
+            onclick="document.getElementById('wish-desc-area').style.display='block';this.style.display='none'">
+            + 添加描述（可选）
+          </a>
+          <div id="wish-desc-area" style="display:none">
+            <label>愿望描述</label>
+            <textarea id="wish-desc" rows="2" placeholder="详细说明"></textarea>
+          </div>
         </div>
         <button class="btn btn-primary" onclick="WishPage.submitCreate()">创建愿望</button>
       </div>
     `;
+    // V2.5 V25-063 - 实时字数统计
+    const nameInput = document.getElementById('wish-name');
+    const rewardInput = document.getElementById('wish-reward');
+    if (nameInput) nameInput.oninput = function () {
+      const counter = document.getElementById('wish-name-count');
+      if (counter) counter.textContent = `${this.value.length}/20`;
+    };
+    if (rewardInput) rewardInput.oninput = function () {
+      const counter = document.getElementById('wish-reward-count');
+      if (counter) counter.textContent = `${this.value.length}/30`;
+    };
   },
 
   closeCreate() {
@@ -249,6 +307,7 @@ const WishPage = {
   },
 
   async submitCreate() {
+    if (this.submittingCreate) return; // V2.5 V25-015
     const name = document.getElementById('wish-name').value.trim();
     const description = document.getElementById('wish-desc').value.trim();
     const type = document.getElementById('wish-type').value;
@@ -260,6 +319,12 @@ const WishPage = {
       return;
     }
 
+    this.submittingCreate = true; // V2.5 V25-015
+    const btn = document.querySelector('#page-wish .btn-primary');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '创建中…';
+    }
     try {
       await API.post('/wishes', {
         name,
@@ -274,6 +339,12 @@ const WishPage = {
       this.load();
     } catch (e) {
       App.toast(e.message, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '创建愿望';
+      }
+    } finally {
+      this.submittingCreate = false; // V2.5 V25-015
     }
   },
 
@@ -282,13 +353,25 @@ const WishPage = {
     this.showBattle = true;
     this.preparedBoss = null;
     this.battleSelectedIds.clear();
-    this.renderBattle(document.getElementById('page-wish'));
+    // V2.5 V25-016 - 立即显示 loading spinner
+    const container = document.getElementById('page-wish');
+    container.innerHTML = `
+      <div class="page-header">
+        <span onclick="WishPage.closeBattle()" style="cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center">← </span>挑战Boss
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 0">
+        <div style="width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite"></div>
+        <div style="margin-top:12px;font-size:13px;color:var(--text-dim)">正在推演Boss天机…</div>
+        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+      </div>
+    `;
 
     try {
+      // V2.5 V25-057 - 各步骤独立 catch，提供具体错误文案
       const [itemData, prepared, characterData] = await Promise.all([
-        API.get('/items'),
-        API.post('/battle/prepare', { wish_id: wishId }),
-        this.character ? Promise.resolve({ character: this.character }) : API.get('/character'),
+        API.get('/items').catch(() => { throw new Error('道具数据加载失败，请检查网络后重试'); }),
+        API.post('/battle/prepare', { wish_id: wishId }).catch(() => { throw new Error('Boss 生成失败，请稍后重试'); }),
+        this.character ? Promise.resolve({ character: this.character }) : API.get('/character').catch(() => { throw new Error('角色数据加载失败，请重新登录'); }),
       ]);
       this.battleItems = itemData.items;
       this.preparedBoss = prepared.boss;
@@ -296,6 +379,7 @@ const WishPage = {
       this.renderBattle(document.getElementById('page-wish'));
     } catch (e) {
       this.showBattle = false;
+      this.selectedWish = null; // V2.5 V25-069 - 失败后清空
       this.preparedBoss = null;
       App.toast(e.message, 'error');
       this.render();
@@ -323,7 +407,7 @@ const WishPage = {
 
     container.innerHTML = `
       <div class="page-header">
-        <span onclick="WishPage.closeBattle()" style="cursor:pointer">← </span>挑战Boss
+        <button onclick="WishPage.closeBattle()" style="background:none;border:none;color:inherit;font-size:inherit;cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-right:4px">←</button>挑战Boss
       </div>
 
       <div class="card">
@@ -332,17 +416,33 @@ const WishPage = {
       </div>
 
       ${!boss ? `
-        <div class="card"><div style="font-size:13px;color:var(--text-dim)">正在推演Boss天机...</div></div>
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim)">
+            <div style="width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0"></div>
+            正在推演Boss天机…
+          </div>
+          <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+        </div>
       ` : `
         <div class="card">
           <div class="card-title">${e(boss.name)}</div>
           <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px">${e(boss.description)}</div>
           <div style="font-size:14px;font-weight:700;margin-bottom:10px">总战力：${boss.total_power}</div>
           ${(() => {
-            const userPower = (this.character?.physique || 0) + (this.character?.comprehension || 0) +
+            const basePower = (this.character?.physique || 0) + (this.character?.comprehension || 0) +
               (this.character?.willpower || 0) + (this.character?.dexterity || 0) + (this.character?.perception || 0);
+            // V2.5 V25-022 - 胜算计算包含已选道具加成
+            const itemPower = this.battleItems
+              .filter(i => this.battleSelectedIds.has(i.id))
+              .reduce((s, i) => s + i.temp_value, 0);
+            const userPower = basePower + itemPower;
             const odds = WishPage.getOddsText(userPower, this.preparedBoss?.total_power);
-            return `<div style="font-size:16px;font-weight:700;color:${odds.color};margin-top:8px">${odds.text}</div>`;
+            return `
+              <div style="font-size:16px;font-weight:700;color:${odds.color};margin-top:8px">${odds.text}</div>
+              <div style="font-size:12px;color:var(--text-dim);margin-top:4px">
+                永久属性 ${basePower.toFixed(1)}${itemPower > 0 ? ` + 道具 ${itemPower.toFixed(1)}` : ''} vs Boss ${this.preparedBoss?.total_power || '?'}
+              </div>
+            `;
           })()} <!-- V2-F05 FB-04 - 胜算展示 -->
           ${Object.entries(WISH_ATTR_NAMES).map(([key, label]) => {
             const val = Number(boss[key] || 0);
@@ -369,8 +469,9 @@ const WishPage = {
           <div style="font-size:13px;color:var(--text-dim)">背包中没有道具，将以纯永久属性挑战</div>
         ` : `
           ${this.battleItems.map(item => `
-            <div class="item-row">
+            <label class="item-row" style="display:flex;align-items:center;cursor:pointer">
               <input type="checkbox" class="item-check"
+                style="width:22px;height:22px;flex-shrink:0"
                 ${this.battleSelectedIds.has(item.id) ? 'checked' : ''}
                 onchange="WishPage.toggleBattleItem(${item.id})">
               <div class="item-info" style="margin-left:10px">
@@ -380,7 +481,7 @@ const WishPage = {
                 })()}
                 <div class="item-meta">${WISH_ATTR_NAMES[item.attribute_type] || item.attribute_type} +${item.temp_value}</div>
               </div>
-            </div>
+            </label>
           `).join('')}
         `}
 
@@ -389,7 +490,7 @@ const WishPage = {
         </div>
       </div>
 
-      <button class="btn btn-danger" style="font-size:16px;padding:14px"
+      <button class="btn btn-primary" style="font-size:16px;padding:14px"
         onclick="WishPage.executeBattle()" ${boss ? '' : 'disabled'}>
         开始挑战！
       </button>
@@ -405,11 +506,21 @@ const WishPage = {
   closeBattle() {
     this.showBattle = false;
     this.preparedBoss = null;
+    this.battleResult = null; // V2.5 V25-068
+    this.selectedWish = null; // 清理引用
+    this.battleItems = [];
+    this.battleSelectedIds.clear();
     this.render();
   },
 
   async executeBattle() {
-    if (!this.preparedBoss) return;
+    if (!this.preparedBoss || this.executing) return; // V2.5 V25-018
+    this.executing = true;
+    const btn = document.querySelector('#page-wish .btn-primary[onclick*="executeBattle"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '挑战中…';
+    }
     try {
       const result = await API.post('/battle/execute', {
         boss_id: this.preparedBoss.id,
@@ -418,6 +529,12 @@ const WishPage = {
       this.showBattleResult(result);
     } catch (e) {
       App.toast(e.message, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '开始挑战！';
+      }
+    } finally {
+      this.executing = false; // V2.5 V25-018
     }
   },
 
@@ -463,14 +580,14 @@ const WishPage = {
 
       <div class="card" style="margin-top:12px">
         <div class="card-title">战斗详情</div>
-        <div style="font-size:13px;line-height:1.8">
-          永久属性战力：${result.user_base_power}<br>
-          道具临时战力：+${result.user_item_power}<br>
-          ${result.is_critical ? `暴击！伤害 ×${result.crit_damage}%<br>` : ''}
-          ${result.is_combo ? `连击！战力 ×130%<br>` : ''}
-          ${result.damage_reduction > 0 ? `减伤：${result.damage_reduction}%<br>` : ''}
-          最终战力：${result.user_final_power}<br>
-          Boss有效战力：${result.boss_power}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;line-height:1.8">
+          <div>⚔️ 永久属性</div><div>${result.user_base_power}</div>
+          <div>🧪 道具加成</div><div>+${result.user_item_power}</div>
+          ${result.is_critical ? `<div>💥 暴击</div><div>×${result.crit_damage}%</div>` : ''}
+          ${result.is_combo ? `<div>⚡ 连击</div><div>×130%</div>` : ''}
+          ${result.damage_reduction > 0 ? `<div>🛡️ 减伤</div><div>${result.damage_reduction}%</div>` : ''}
+          <div style="font-weight:700">最终战力</div><div style="font-weight:700">${result.user_final_power}</div>
+          <div style="color:var(--red)">Boss战力</div><div style="color:var(--red)">${result.boss_power}</div>
         </div>
       </div>
 
@@ -485,7 +602,7 @@ const WishPage = {
       ` : `
         <div class="card">
           <div style="color:var(--red);font-size:16px;font-weight:700">⚔️ 败北</div>
-          <div style="margin-top:8px;font-size:13px;color:var(--text-dim)">
+          <div style="margin-top:8px;font-size:13px;color:var(--text-dim);white-space:pre-line;line-height:1.8">
             ${e(WishPage.getDefeatAdvice(this.battleResult))}
           </div>
           <div style="font-size:12px;color:var(--text-dim);margin-top:4px">道具已消耗，积累后可再次挑战</div> <!-- V2-F05 FB-04 - 失败后差距分析 -->
@@ -496,6 +613,10 @@ const WishPage = {
     `;
 
     const roundsContainer = document.getElementById('battle-rounds');
+    // V2.5 V25-061 - 动画期间禁用返回按钮
+    const backBtn = document.querySelector('#page-wish .btn-primary[onclick*="closeBattle"]');
+    if (backBtn) backBtn.disabled = true;
+
     rounds.forEach((r, i) => {
       setTimeout(() => {
         const div = document.createElement('div');
@@ -506,17 +627,46 @@ const WishPage = {
           <div class="round-detail">${e(r.userAction)} | ${e(r.bossAction)}</div>
         `;
         roundsContainer.appendChild(div);
+
+        // V2.5 V25-058 - 最后一回合：显示完成提示 + 滚动到结果
+        if (i === rounds.length - 1) {
+          const endDiv = document.createElement('div');
+          endDiv.className = 'battle-round';
+          endDiv.style.textAlign = 'center';
+          endDiv.style.fontWeight = '700';
+          endDiv.style.color = 'var(--text-dim)';
+          endDiv.style.marginTop = '8px';
+          endDiv.textContent = '— 战斗结束 —';
+          roundsContainer.appendChild(endDiv);
+          // 滚动到结果区域
+          const resultEl = document.querySelector('.battle-result');
+          if (resultEl) resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // V2.5 V25-061 - 动画结束后启用返回按钮
+          if (backBtn) backBtn.disabled = false;
+        }
       }, i * 600);
     });
   },
 
   async redeem(wishId) {
+    // V2.5 V25-017 - 兑现前二次确认
+    if (!confirm('确认兑现这个愿望的奖励？')) return;
+    // V2.5 V25-059 - 乐观更新：立即禁用按钮
+    const btn = document.querySelector(`[onclick="WishPage.redeem(${wishId})"]`);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '兑现中…';
+    }
     try {
       await API.post(`/rewards/${wishId}/redeem`);
       App.toast('奖励已兑现！', 'success');
       this.load();
     } catch (e) {
       App.toast(e.message, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '兑现';
+      }
     }
   },
 };
