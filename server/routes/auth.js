@@ -114,32 +114,40 @@ router.post('/wx-login', async (req, res) => {
       return res.status(500).json({ error: '获取 openid 失败' });
     }
 
+    // 已绑定，直接登录
     const user = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid);
     if (user) {
       const token = generateToken(user);
       return res.json({ token, user: { id: user.id, name: user.name, family_id: user.family_id } });
     }
 
-    // 未绑定，返回 openid 让前端走绑定流程
-    res.json({ needBind: true, openid });
+    // 未绑定，查询所有未绑定 openid 的角色
+    const unboundUsers = db.prepare("SELECT id, name, username FROM users WHERE openid = '' OR openid IS NULL").all();
+    res.json({ needBind: true, openid, unboundUsers });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// POST /api/auth/wx-bind — 用 openid + 用户名密码绑定已有账号
+// POST /api/auth/wx-bind — 用 openid + 用户名确认绑定已有角色（不需要密码）
 router.post('/wx-bind', (req, res) => {
   const openid = String(req.body.openid || '').trim();
+  const userId = req.body.userId;
   const username = String(req.body.username || '').trim();
-  const password = String(req.body.password || '');
 
-  if (!openid || !username || !password) {
-    return res.status(400).json({ error: 'openid、用户名、密码不能为空' });
+  if (!openid || !userId || !username) {
+    return res.status(400).json({ error: '参数不完整' });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.status(401).json({ error: '用户名或密码错误' });
+  // 查找目标用户
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  if (!user) {
+    return res.status(404).json({ error: '角色不存在' });
+  }
+
+  // 用户名确认（防止误选）
+  if (user.username !== username) {
+    return res.status(400).json({ error: '用户名不匹配' });
   }
 
   // 检查该 openid 是否已绑定其他账号
@@ -153,6 +161,41 @@ router.post('/wx-bind', (req, res) => {
 
   const token = generateToken(user);
   res.json({ token, user: { id: user.id, name: user.name, family_id: user.family_id } });
+});
+
+// POST /api/auth/wx-register — 微信新建角色
+router.post('/wx-register', (req, res) => {
+  const openid = String(req.body.openid || '').trim();
+  const name = String(req.body.name || '').trim();
+
+  if (!openid || !name) {
+    return res.status(400).json({ error: 'openid 和昵称不能为空' });
+  }
+  if (name.length < NAME_MIN || name.length > NAME_MAX) {
+    return res.status(400).json({ error: `昵称长度需在${NAME_MIN}-${NAME_MAX}字符之间` });
+  }
+
+  // 检查 openid 是否已绑定
+  const existingBind = db.prepare('SELECT id FROM users WHERE openid = ?').get(openid);
+  if (existingBind) {
+    return res.status(400).json({ error: '该微信已绑定账号' });
+  }
+
+  const family = db.prepare('SELECT id FROM families LIMIT 1').get();
+  // 用 openid 后8位作为用户名，保证唯一
+  const username = 'wx_' + openid.slice(-8);
+  const passwordHash = bcrypt.hashSync(openid, 10); // 用 openid 作为密码（用户不需要知道）
+
+  const result = db.prepare(
+    "INSERT INTO users (family_id, username, password_hash, name, openid, status) VALUES (?, ?, ?, ?, ?, '居家')"
+  ).run(family.id, username, passwordHash, name, openid);
+
+  const userId = result.lastInsertRowid;
+  db.prepare('INSERT INTO characters (user_id) VALUES (?)').run(userId);
+
+  const user = { id: userId, family_id: family.id, name };
+  const token = generateToken(user);
+  res.json({ token, user: { id: userId, name, family_id: family.id } });
 });
 
 module.exports = router;

@@ -7,37 +7,72 @@
     <view style="font-size:28rpx;color:#94a3b8">正在登录...</view>
   </view>
 
-  <!-- 绑定模式：首次微信登录，需要绑定已有账号 -->
+  <!-- 绑定模式：选择已有角色 -->
   <view wx:elif="{{mode === 'bind'}}" class="login-form">
-    <view style="font-size:26rpx;color:#94a3b8;text-align:center;margin-bottom:40rpx">
-      首次使用，请输入已有账号完成绑定
-    </view>
-    <view class="form-group">
-      <view class="input-wrap">
-        <input placeholder="用户名" placeholder-class="input-placeholder" bindinput="onUsernameInput" value="{{username}}" />
+
+    <!-- 未选择角色：显示角色列表 -->
+    <block wx:if="{{!selectedUser}}">
+      <view style="font-size:26rpx;color:#94a3b8;text-align:center;margin-bottom:40rpx">
+        选择你的角色
       </view>
-    </view>
-    <view class="form-group">
-      <view class="input-wrap">
-        <input placeholder="密码" placeholder-class="input-placeholder" password bindinput="onPasswordInput" value="{{password}}" />
+      <view wx:for="{{unboundUsers}}" wx:key="id"
+        class="user-card" bindtap="selectUser" data-id="{{item.id}}">
+        <view class="user-avatar">{{item.name[0]}}</view>
+        <view style="flex:1;min-width:0">
+          <view style="font-size:30rpx;color:#f8fafc">{{item.name}}</view>
+        </view>
+        <text style="font-size:24rpx;color:#64748b">选择 ›</text>
       </view>
-    </view>
-    <button class="btn btn-primary" bindtap="bindAndLogin" disabled="{{loading}}">
-      {{loading ? '绑定中...' : '绑定并登录'}}
-    </button>
-    <view class="switch-link" bindtap="switchToPassword">使用密码登录</view>
+      <view class="switch-link" bindtap="goToRegister">创建新角色</view>
+    </block>
+
+    <!-- 已选择角色：输入用户名确认 -->
+    <block wx:else>
+      <view style="font-size:26rpx;color:#94a3b8;text-align:center;margin-bottom:40rpx">
+        确认绑定「{{selectedUser.name}}」
+      </view>
+      <view class="form-group">
+        <view class="input-wrap">
+          <input placeholder="输入用户名确认" placeholder-class="input-placeholder"
+            bindinput="onConfirmUsernameInput" value="{{confirmUsername}}" />
+        </view>
+      </view>
+      <button class="btn btn-primary" bindtap="confirmBind" disabled="{{loading}}">
+        {{loading ? '绑定中...' : '确认绑定'}}
+      </button>
+      <view class="switch-link" bindtap="cancelSelect">返回选择</view>
+    </block>
   </view>
 
-  <!-- 密码登录模式（兜底） -->
+  <!-- 新建角色 -->
+  <view wx:elif="{{mode === 'register'}}" class="login-form">
+    <view style="font-size:26rpx;color:#94a3b8;text-align:center;margin-bottom:40rpx">
+      创建你的修仙角色
+    </view>
+    <view class="form-group">
+      <view class="input-wrap">
+        <input placeholder="输入昵称" placeholder-class="input-placeholder"
+          bindinput="onNewNameInput" value="{{newName}}" maxlength="20" />
+      </view>
+    </view>
+    <button class="btn btn-primary" bindtap="registerUser" disabled="{{loading}}">
+      {{loading ? '创建中...' : '开始修仙'}}
+    </button>
+    <view wx:if="{{unboundUsers.length > 0}}" class="switch-link" bindtap="backToBind">绑定已有角色</view>
+  </view>
+
+  <!-- 密码登录（兜底） -->
   <view wx:elif="{{mode === 'password'}}" class="login-form">
     <view class="form-group">
       <view class="input-wrap">
-        <input placeholder="用户名" placeholder-class="input-placeholder" bindinput="onUsernameInput" value="{{username}}" />
+        <input placeholder="用户名" placeholder-class="input-placeholder"
+          bindinput="onUsernameInput" value="{{username}}" />
       </view>
     </view>
     <view class="form-group">
       <view class="input-wrap">
-        <input placeholder="密码" placeholder-class="input-placeholder" password bindinput="onPasswordInput" value="{{password}}" />
+        <input placeholder="密码" placeholder-class="input-placeholder" password
+          bindinput="onPasswordInput" value="{{password}}" />
       </view>
     </view>
     <button class="btn btn-primary" bindtap="login" disabled="{{loading}}">
