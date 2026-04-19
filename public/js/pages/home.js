@@ -20,10 +20,12 @@ const HomePage = {
   data: null,
   cultivationStatus: null,
   achievements: [], // V2-F10
+  itemsGrouped: {}, // V2.6 FIX-6 - 背包分组缓存（推荐合成判断）
   promoting: false, // V2.5 V25-002 - 晋级防重复标志位
   settingStatus: false, // V2.5 V25-003 - 状态提交防重复标志位
   trendDetailDate: null, // V2.6 - 趋势图当前展开的日期
   trendDetailData: null, // V2.6 - 当天行为明细数据
+  achievementsExpanded: false, // V2.6 P2 - 成就默认收起
 
   async load() {
     const container = document.getElementById('page-home');
@@ -36,15 +38,18 @@ const HomePage = {
       </div>
     `;
     try {
-      const [characterData, achievementsData] = await Promise.all([
+      const [characterData, achievementsData, itemsData] = await Promise.all([
         API.get('/character'),
         API.get('/character/achievements').catch(() => []), // V2-F10 - 成就接口失败时不阻塞首页
+        API.get('/items').catch(() => ({ items: [], grouped: {} })),
       ]);
       this.trendDetailDate = null;
       this.trendDetailData = null;
+      this.achievementsExpanded = false; // V2.6 P2 - 每次加载重置折叠状态
       this.data = characterData;
       this.cultivationStatus = characterData.cultivationStatus || null;
       this.achievements = Array.isArray(achievementsData) ? achievementsData : [];
+      this.itemsGrouped = itemsData.grouped || {};
       this.toastNewAchievements(this.achievements); // V2-F10 - 首次解锁提示
       this.render();
     } catch (e) {
@@ -82,7 +87,14 @@ const HomePage = {
       const hasRecentBehavior = trend && trend.days && Object.values(trend.byAttribute || {}).some(
         byAttr => byAttr.counts && byAttr.counts.some(c => c > 0)
       );
-      if (hasRecentBehavior) return 'suggest_synthesize';
+      if (hasRecentBehavior) {
+        // 检查是否有任意属性的道具临时值累计 >= 10（合成门槛）
+        const grouped = HomePage.itemsGrouped || {};
+        const canSynthesize = Object.values(grouped).some(g => g.totalTempValue >= 10);
+        if (canSynthesize) return 'suggest_synthesize';
+        // 有道具但不够合成，推荐继续上报
+        return 'suggest_more_behaviors';
+      }
       return null;
     }
 
@@ -135,6 +147,20 @@ const HomePage = {
             <div>
               <span class="recommend-text">你已经获得了道具，去背包合成提升属性吧</span>
               <button class="btn btn-small btn-primary" style="margin-top:8px">去合成 →</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (recs === 'suggest_more_behaviors') {
+      return `
+        <div class="card recommend-card" onclick="App.navigate('behavior')">
+          <div class="card-title">✨ 今日推荐</div>
+          <div class="recommend-item">
+            <div>
+              <span class="recommend-text">道具还不够合成（需要同属性累计10点），继续上报行为积攒道具吧</span>
+              <button class="btn btn-small btn-primary" style="margin-top:8px">去上报 →</button>
             </div>
           </div>
         </div>
@@ -194,7 +220,7 @@ const HomePage = {
     sessionStorage.setItem(toastedKey, JSON.stringify(toasted));
   },
 
-  // V2-F10 - 成就卡片渲染
+  // V2-F10 / V2.6 P2 - 成就卡片渲染（默认折叠）
   renderAchievements() {
     const e = API.escapeHtml.bind(API);
     if (!Array.isArray(this.achievements) || this.achievements.length === 0) {
@@ -210,10 +236,33 @@ const HomePage = {
       `;
     }
 
+    const unlockedCount = this.achievements.filter(a => a.unlocked).length;
+    const totalCount = this.achievements.length;
+    const lastUnlocked = this.achievements.filter(a => a.unlocked).slice(-1)[0];
+    const indicator = this.achievementsExpanded ? '▴' : '▾';
+
+    // V2.6 P2 - 摘要行：左侧"成就 X/6" + 右侧最近解锁 icon+name + 折叠指示器
+    const summaryRow = `
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+        onclick="HomePage.achievementsExpanded=!HomePage.achievementsExpanded;HomePage.render()">
+        <span style="font-size:15px;font-weight:600;color:var(--text-bright)">成就 ${unlockedCount}/${totalCount}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${lastUnlocked ? `<span style="font-size:13px;color:var(--text-dim)">${e(lastUnlocked.icon)} ${e(lastUnlocked.name)}</span>` : ''}
+          <span style="font-size:14px;color:var(--text-dim)">${indicator}</span>
+        </div>
+      </div>
+    `;
+
+    if (!this.achievementsExpanded) {
+      // V2.6 P2 - 收起态：只显示摘要行
+      return `<div class="card">${summaryRow}</div>`;
+    }
+
+    // V2.6 P2 - 展开态：摘要行 + 完整成就列表
     return `
-      <div class="card"> <!-- V2-F10 -->
-        <div class="card-title">成就</div>
-        <div id="achievements-container">
+      <div class="card">
+        ${summaryRow}
+        <div id="achievements-container" style="margin-top:12px">
           ${this.achievements.map(a => `
             <div class="achievement-item ${a.unlocked ? 'unlocked' : 'locked'}">
               <span class="achievement-icon">${e(a.icon)}</span>
@@ -341,7 +390,7 @@ const HomePage = {
     const allEmpty = dailyData.every(d => d.total === 0);
     if (allEmpty) {
       return `
-        <div class="card" style="margin-bottom:12px">
+        <div class="card">
           <div class="card-title">本周修炼趋势</div>
           <div class="empty-state" style="padding:24px 16px">
             <div style="font-size:14px;color:var(--text-dim)">还没有修炼记录，上报第一条行为开始积累趋势</div>
@@ -358,7 +407,7 @@ const HomePage = {
       </span>`
     ).join('');
 
-    const chartHeight = 120;
+    const chartHeight = 100;
     const bars = dailyData.map(d => {
       const isToday = d.day === today;
       const barHeight = d.total > 0 ? Math.max(Math.round((d.total / maxTotal) * chartHeight), 4) : 2;
@@ -379,13 +428,13 @@ const HomePage = {
       }
 
       return `
-        <div style="display:flex;flex-direction:column;align-items:center;width:28px;cursor:pointer"
+        <div style="display:flex;flex-direction:column;align-items:center;width:32px;cursor:pointer"
           onclick="HomePage.toggleTrendDetail('${e(d.day)}')">
-          <div style="width:100%;height:${barHeight}px;display:flex;flex-direction:column-reverse${isToday ? ';box-shadow:0 0 6px rgba(139,92,246,0.4)' : ''}">
+          <div style="font-size:10px;color:var(--text-dim);height:16px;line-height:16px">${d.total > 0 ? d.total.toFixed(1) : ''}</div>
+          <div style="width:100%;height:${barHeight}px;display:flex;flex-direction:column-reverse;margin-top:2px${isToday ? ';box-shadow:0 0 6px rgba(139,92,246,0.4)' : ''}">
             ${blocks}
           </div>
           <div style="font-size:11px;color:${isToday ? 'var(--primary)' : 'var(--text-dim)'};margin-top:4px;font-weight:${isToday ? '700' : '400'}">${weekday}</div>
-          <div style="font-size:10px;color:var(--text-dim)">${d.total > 0 ? d.total.toFixed(1) : ''}</div>
         </div>
       `;
     }).join('');
@@ -393,12 +442,12 @@ const HomePage = {
     const detailHtml = this.trendDetailDate ? this.renderTrendDetail() : '';
 
     return `
-      <div class="card" style="margin-bottom:12px">
+      <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <div class="card-title" style="margin-bottom:0">本周修炼趋势</div>
           <div>${legend}</div>
         </div>
-        <div style="display:flex;align-items:flex-end;justify-content:center;gap:8px;height:${chartHeight}px;padding:8px 0">
+        <div style="display:flex;align-items:flex-end;justify-content:center;gap:6px;padding:8px 0">
           ${bars}
         </div>
         ${detailHtml}
@@ -527,47 +576,26 @@ const HomePage = {
       停滞: 'var(--red)',
     };
     const cvColor = cultivationColors[cultivationStatus?.level] || 'var(--text-dim)';
-    const cultivationCard = cultivationStatus ? `
-      <div class="card" style="margin-bottom:12px;border-left:4px solid ${cvColor}">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <span style="font-size:15px;font-weight:700;color:${cvColor}">
-              ${cultivationStatus.level === '精进' ? '🔥 ' : ''}${e(cultivationStatus.level)}
-            </span>
-            <span style="font-size:13px;color:var(--text-dim);margin-left:8px">
-              本周活跃 ${cultivationStatus.activeDays}/7 天 · ${cultivationStatus.activeCategories} 类
-            </span>
-          </div>
-          ${cultivationStatus.dropBonus > 0 ? `
-            <span style="font-size:12px;color:var(--gold)">良品+${Math.round(cultivationStatus.dropBonus * 100)}%</span>
-          ` : ''}
-          ${cultivationStatus.bufferAdjust < 0 ? `
-            <span style="font-size:12px;color:var(--red)">缓冲${cultivationStatus.bufferAdjust}天</span>
-          ` : ''}
-        </div>
-        ${cultivationStatus.nextLevelHint ? `
-          <div style="font-size:12px;color:var(--text-dim);margin-top:6px">${e(cultivationStatus.nextLevelHint)}</div>
-        ` : ''}
-      </div>
-    ` : '';
 
     container.innerHTML = `
-      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between">
-        <span>${e(API.user.name)}</span>
-        <span class="status-badge status-${e(character.status || '居家')}"
-          onclick="HomePage.showStatusPicker()"
-          style="cursor:pointer;font-size:12px;padding:4px 10px;border-radius:12px;${(() => {
-            const status = character.status || '居家';
-            const statusColors = { 居家: 'var(--green)', 生病: 'var(--red)', 出差: 'var(--blue)' };
-            const bg = statusColors[status] || 'var(--bg-card-light)';
-            return `background:${bg};color:#fff`;
-          })()};min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center">
-          ${e(character.status || '居家')} ▾
-        </span>
-      </div> <!-- V2-F04 FB-03 - 顶部展示用户名 + 状态badge -->
-
+      <!-- V2.6 P1 - Hero card：合并用户名 + 境界 + 修炼状态 -->
       <div class="card">
-        <div class="realm-progress-line">
+        <!-- 第一行：用户名（左）+ 环境状态 badge（右） -->
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:20px;font-weight:700;color:var(--text-bright)">${e(API.user.name)}</span>
+          <span class="status-badge status-${e(character.status || '居家')}"
+            onclick="HomePage.showStatusPicker()"
+            style="cursor:pointer;font-size:12px;padding:4px 10px;border-radius:12px;${(() => {
+              const status = character.status || '居家';
+              const statusColors = { 居家: 'var(--green)', 生病: 'var(--red)', 出差: 'var(--blue)' };
+              const bg = statusColors[status] || 'var(--bg-card-light)';
+              return `background:${bg};color:#fff`;
+            })()};min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center">
+            ${e(character.status || '居家')} ▾
+          </span>
+        </div>
+        <!-- 第二行：境界 badge + 修炼状态 + 加成/缓冲标签 -->
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
           ${promotion.canPromote ? `
             <button class="realm-badge realm-badge-action promotable" onclick="HomePage.promote()"
               role="status" aria-label="当前境界：${e(character.realm_stage)}，可晋级">
@@ -579,27 +607,47 @@ const HomePage = {
               ${realmStageText}
             </span>
           `}
-          <span class="realm-progress-text">${realmProgressText}</span>
+          ${cultivationStatus ? `
+            <span style="font-size:13px;font-weight:600;color:${cvColor}">
+              ${cultivationStatus.level === '精进' ? '🔥 ' : ''}${e(cultivationStatus.level)} · ${cultivationStatus.activeDays}/7天 · ${cultivationStatus.activeCategories}类
+            </span>
+          ` : ''}
+          ${cultivationStatus ? `
+            <span style="font-size:12px;color:var(--text-dim);cursor:pointer" onclick="event.stopPropagation();HomePage.showCultivationHelp()">?</span>
+          ` : ''}
+          ${cultivationStatus && cultivationStatus.dropBonus > 0 ? `
+            <span style="font-size:12px;color:var(--gold)">良品+${Math.round(cultivationStatus.dropBonus * 100)}%</span>
+          ` : ''}
+          ${cultivationStatus && cultivationStatus.bufferAdjust < 0 ? `
+            <span style="font-size:12px;color:var(--red)">缓冲${cultivationStatus.bufferAdjust}天</span>
+          ` : ''}
         </div>
-        ${realmReason}
+        <!-- 第三行（条件）：nextLevelHint -->
+        ${cultivationStatus && cultivationStatus.nextLevelHint ? `
+          <div style="font-size:12px;color:var(--text-dim);margin-top:6px">${e(cultivationStatus.nextLevelHint)}</div>
+        ` : ''}
+        <!-- 第四行：境界进度 + 原因 -->
+        <div style="margin-top:8px">
+          <span class="realm-progress-text">${realmProgressText}</span>
+          ${realmReason}
+        </div>
       </div>
 
       ${decayHtml ? `<div class="card"><div class="card-title">衰退预警</div>${decayHtml}</div>` : ''}
 
-      ${cultivationCard}
-
-      <div class="card">
+      <div class="card card-tight">
         <div class="card-title">属性总览</div>
         ${this.renderRadar(character)}
       </div>
 
       ${this.renderTrend(trend)}
 
-      ${this.renderRecommendations(character, trend)} <!-- V2-F03 FB-01 -->
-      ${this.renderAchievements()} <!-- V2-F10 -->
+      ${this.renderRecommendations(character, trend)}
+      ${this.renderAchievements()}
 
-      <div style="text-align:center;margin-top:20px">
+      <div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-top:20px">
         <span style="font-size:12px;color:var(--text-dim);cursor:pointer" onclick="HomePage.logout()">退出登录</span>
+        <span style="font-size:10px;color:var(--text-dim)">${this.data?.appVersion ? `v${API.escapeHtml(this.data.appVersion)}` : ''}</span>
       </div>
     `;
   },
@@ -708,6 +756,27 @@ const HomePage = {
     } finally {
       this.promoting = false;
     }
+  },
+
+  showCultivationHelp() {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px';
+    modal.onclick = function (event) { if (event.target === this) this.remove(); };
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);border-radius:var(--radius);padding:20px;max-width:340px;width:100%;border:1px solid var(--border)">
+        <div style="font-size:16px;font-weight:700;color:var(--text-bright);margin-bottom:12px">修炼状态说明</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.6">
+          <p style="margin:0 0 8px">修炼状态根据你最近 7 天的活跃情况自动计算，影响道具掉率和属性衰退缓冲。</p>
+          <div style="margin-bottom:6px"><span style="color:var(--gold);font-weight:600">🔥 精进</span>：活跃≥6天 + 覆盖≥3个类别。良品掉率+10%。</div>
+          <div style="margin-bottom:6px"><span style="color:var(--primary);font-weight:600">稳修</span>：活跃≥4天。无额外加成，无惩罚。</div>
+          <div style="margin-bottom:6px"><span style="color:var(--text-dim);font-weight:600">懈怠</span>：活跃≥1天。衰退缓冲-5天。</div>
+          <div style="margin-bottom:6px"><span style="color:var(--red);font-weight:600">停滞</span>：0天活跃。衰退缓冲-10天。</div>
+          <p style="margin:8px 0 0;color:var(--text-dim);font-size:12px">衰退缓冲：属性停止增长后，经过缓冲期才开始衰退。默认15天，非居家状态延长至30天。</p>
+        </div>
+        <button class="btn btn-secondary" style="margin-top:16px;width:100%" onclick="this.closest('div[style*=fixed]').remove()">知道了</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
   },
 
   logout() {

@@ -4,6 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { checkPromotion, getTotalAttrs, getRealmByName } = require('../services/realm');
 const { calculateDecay, getDecayStatus } = require('../services/decay');
 const { getCultivationStatus } = require('../services/cultivation');
+const pkg = require('../../package.json');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -100,7 +101,7 @@ function normalizeUserStatus(status) {
 // GET /api/character — get current user's character
 router.get('/', (req, res) => {
   const character = db.prepare(
-    `SELECT c.*, u.tags
+    `SELECT c.*, u.tags, u.avatar
      FROM characters c JOIN users u ON c.user_id = u.id
      WHERE c.user_id = ?`
   ).get(req.user.id);
@@ -141,12 +142,14 @@ router.get('/', (req, res) => {
       attr_cap: realm ? realm.attrCap : 3,
       total_attrs: getTotalAttrs(character),
       status: userStatus,
+      avatar: character.avatar || '',
     },
     tags,
     trend,
     promotion,
     decayStatus,
     cultivationStatus,
+    appVersion: pkg.version,
   });
 });
 

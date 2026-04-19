@@ -19,6 +19,7 @@ app.use('/api/wishes', require('./routes/wish'));
 app.use('/api/battle', require('./routes/boss'));
 app.use('/api/rewards', require('./routes/reward'));
 app.use('/api/family', require('./routes/family'));
+app.use('/api/upload', require('./routes/upload'));
 
 // SPA fallback
 app.get('*', (req, res) => {

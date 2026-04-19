@@ -1,0 +1,50 @@
+<view class="login-container">
+  <view class="login-title">修仙日常</view>
+  <view class="login-subtitle">休闲修仙养成</view>
+
+  <!-- 微信自动登录中 -->
+  <view wx:if="{{mode === 'wx' && wxLoading}}" class="wx-loading">
+    <view style="font-size:28rpx;color:#94a3b8">正在登录...</view>
+  </view>
+
+  <!-- 绑定模式：首次微信登录，需要绑定已有账号 -->
+  <view wx:elif="{{mode === 'bind'}}" class="login-form">
+    <view style="font-size:26rpx;color:#94a3b8;text-align:center;margin-bottom:40rpx">
+      首次使用，请输入已有账号完成绑定
+    </view>
+    <view class="form-group">
+      <view class="input-wrap">
+        <input placeholder="用户名" placeholder-class="input-placeholder" bindinput="onUsernameInput" value="{{username}}" />
+      </view>
+    </view>
+    <view class="form-group">
+      <view class="input-wrap">
+        <input placeholder="密码" placeholder-class="input-placeholder" password bindinput="onPasswordInput" value="{{password}}" />
+      </view>
+    </view>
+    <button class="btn btn-primary" bindtap="bindAndLogin" disabled="{{loading}}">
+      {{loading ? '绑定中...' : '绑定并登录'}}
+    </button>
+    <view class="switch-link" bindtap="switchToPassword">使用密码登录</view>
+  </view>
+
+  <!-- 密码登录模式（兜底） -->
+  <view wx:elif="{{mode === 'password'}}" class="login-form">
+    <view class="form-group">
+      <view class="input-wrap">
+        <input placeholder="用户名" placeholder-class="input-placeholder" bindinput="onUsernameInput" value="{{username}}" />
+      </view>
+    </view>
+    <view class="form-group">
+      <view class="input-wrap">
+        <input placeholder="密码" placeholder-class="input-placeholder" password bindinput="onPasswordInput" value="{{password}}" />
+      </view>
+    </view>
+    <button class="btn btn-primary" bindtap="login" disabled="{{loading}}">
+      {{loading ? '登录中...' : '登录'}}
+    </button>
+    <view class="switch-link" bindtap="switchToWx">使用微信登录</view>
+  </view>
+
+  <view class="login-version text-dim">v{{version}}</view>
+</view>

@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const https = require('https');
 const { db } = require('../db');
 const { generateToken } = require('../middleware/auth');
 
@@ -10,6 +11,35 @@ const PASSWORD_MIN = 4;
 const PASSWORD_MAX = 128;
 const NAME_MIN = 1;
 const NAME_MAX = 20;
+
+const WX_APPID = process.env.WX_APPID || '';
+const WX_APP_SECRET = process.env.WX_APP_SECRET || '';
+
+// 调用微信 jscode2session 接口
+function wxCode2Session(code) {
+  return new Promise((resolve, reject) => {
+    if (!WX_APPID || !WX_APP_SECRET) {
+      return reject(new Error('微信配置缺失：WX_APPID 或 WX_APP_SECRET 未设置'));
+    }
+    const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${WX_APPID}&secret=${WX_APP_SECRET}&js_code=${code}&grant_type=authorization_code`;
+    https.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.errcode) {
+            reject(new Error(`微信接口错误: ${json.errcode} ${json.errmsg}`));
+          } else {
+            resolve(json);
+          }
+        } catch (e) {
+          reject(new Error('微信接口返回解析失败'));
+        }
+      });
+    }).on('error', reject);
+  });
+}
 
 // POST /api/auth/register
 router.post('/register', (req, res) => {
@@ -65,6 +95,61 @@ router.post('/login', (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return res.status(401).json({ error: '用户名或密码错误' });
   }
+
+  const token = generateToken(user);
+  res.json({ token, user: { id: user.id, name: user.name, family_id: user.family_id } });
+});
+
+// POST /api/auth/wx-login — 微信登录（code 换 openid，已绑定则直接返回 token）
+router.post('/wx-login', async (req, res) => {
+  const code = String(req.body.code || '').trim();
+  if (!code) {
+    return res.status(400).json({ error: 'code 不能为空' });
+  }
+
+  try {
+    const wxRes = await wxCode2Session(code);
+    const openid = wxRes.openid;
+    if (!openid) {
+      return res.status(500).json({ error: '获取 openid 失败' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid);
+    if (user) {
+      const token = generateToken(user);
+      return res.json({ token, user: { id: user.id, name: user.name, family_id: user.family_id } });
+    }
+
+    // 未绑定，返回 openid 让前端走绑定流程
+    res.json({ needBind: true, openid });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/auth/wx-bind — 用 openid + 用户名密码绑定已有账号
+router.post('/wx-bind', (req, res) => {
+  const openid = String(req.body.openid || '').trim();
+  const username = String(req.body.username || '').trim();
+  const password = String(req.body.password || '');
+
+  if (!openid || !username || !password) {
+    return res.status(400).json({ error: 'openid、用户名、密码不能为空' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ error: '用户名或密码错误' });
+  }
+
+  // 检查该 openid 是否已绑定其他账号
+  const existingBind = db.prepare('SELECT id FROM users WHERE openid = ? AND id != ?').get(openid, user.id);
+  if (existingBind) {
+    return res.status(400).json({ error: '该微信已绑定其他账号' });
+  }
+
+  // 绑定 openid
+  db.prepare('UPDATE users SET openid = ? WHERE id = ?').run(openid, user.id);
 
   const token = generateToken(user);
   res.json({ token, user: { id: user.id, name: user.name, family_id: user.family_id } });

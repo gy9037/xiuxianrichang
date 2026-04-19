@@ -1,0 +1,202 @@
+/* 背包页样式 */
+
+/* 品质颜色 */
+.quality-fan { color: #94a3b8; }
+.quality-liang { color: #10b981; }
+.quality-shang { color: #3b82f6; }
+.quality-ji { color: #f59e0b; }
+
+/* 炼化规则链接 */
+.rules-link {
+  font-size: 24rpx;
+  color: #8b5cf6;
+  white-space: nowrap;
+  padding: 12rpx 24rpx;
+  min-height: 72rpx;
+  display: inline-flex;
+  align-items: center;
+  border: 1rpx solid #8b5cf6;
+  border-radius: 24rpx;
+  background: rgba(139, 92, 246, 0.08);
+}
+
+/* 属性分类 Tab */
+.attr-tabs {
+  white-space: nowrap;
+  margin-bottom: 24rpx;
+}
+
+.attr-tab-inner {
+  display: inline-flex;
+  gap: 16rpx;
+}
+
+.attr-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12rpx 24rpx;
+  font-size: 26rpx;
+  color: #94a3b8;
+  background: #252540;
+  border-radius: 16rpx;
+  border: none;
+  min-height: 88rpx;
+}
+
+.attr-tab:active {
+  opacity: 0.7;
+}
+
+.attr-tab-active {
+  color: #fff;
+  background: #8b5cf6;
+}
+
+/* 全选按钮 */
+.select-all-btn {
+  font-size: 24rpx;
+  color: #8b5cf6;
+  padding: 16rpx 24rpx;
+  min-height: 88rpx;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 道具行 */
+.item-row {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 24rpx;
+  background: #1a1a2e;
+  border-radius: 16rpx;
+  margin-bottom: 16rpx;
+  border: 1rpx solid #334155;
+  min-height: 88rpx;
+}
+
+.item-row:active {
+  opacity: 0.8;
+}
+
+.item-row-checked {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.05);
+}
+
+/* 模拟 checkbox */
+.item-checkbox {
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.checkbox-box {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 10rpx;
+  border: 2rpx solid #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37, 37, 64, 0.6);
+}
+
+.checkbox-checked {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+.checkbox-tick {
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 道具信息 */
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 4rpx;
+}
+
+.item-quality-tag {
+  font-size: 22rpx;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 合成摘要栏 */
+.synth-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 32rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: #1a1a2e;
+  border-top: 1rpx solid #334155;
+  z-index: 100;
+}
+
+.synth-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.synth-btn {
+  margin-left: 24rpx;
+  flex-shrink: 0;
+}
+
+/* 炼化规则弹窗 */
+.rules-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 48rpx;
+}
+
+.rules-modal {
+  background: #1a1a2e;
+  border-radius: 16rpx;
+  padding: 40rpx;
+  width: 100%;
+  max-width: 600rpx;
+  border: 1rpx solid #334155;
+}
+
+.rules-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 24rpx;
+  text-align: center;
+}
+
+.rules-body {
+  font-size: 26rpx;
+  color: #cbd5e1;
+  line-height: 1.8;
+}
+
+.rules-item {
+  margin-bottom: 16rpx;
+}

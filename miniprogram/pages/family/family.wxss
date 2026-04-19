@@ -1,0 +1,179 @@
+/* 家庭页样式 */
+
+/* 头像首字母 */
+.avatar-initial {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #fff;
+}
+
+.avatar-initial-sm {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* 折叠操作 */
+.fold-action {
+  text-align: center;
+  padding: 16rpx 0;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fold-action:active {
+  opacity: 0.7;
+}
+
+/* Feed 动态 */
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.feed-item {
+  padding-bottom: 24rpx;
+  border-bottom: 1rpx solid #334155;
+}
+
+.feed-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.feed-header {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.feed-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  min-width: 72rpx;
+  border-radius: 50%;
+  margin-right: 16rpx;
+}
+
+.feed-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.feed-username {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.feed-time {
+  font-size: 22rpx;
+  flex-shrink: 0;
+  margin-left: 12rpx;
+}
+
+.feed-desc {
+  font-size: 24rpx;
+  color: #e2e8f0;
+  margin-top: 4rpx;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.quality-tag {
+  font-size: 22rpx;
+  font-weight: 600;
+  padding: 2rpx 12rpx;
+  background: #252540;
+  border-radius: 16rpx;
+}
+
+.feed-reward {
+  font-size: 24rpx;
+  margin-top: 4rpx;
+  display: block;
+}
+
+/* 表情反应 */
+.reaction-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  padding-left: 88rpx;
+}
+
+.reaction-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 24rpx;
+  background: #252540;
+  font-size: 24rpx;
+  color: #94a3b8;
+  min-height: 72rpx;
+}
+
+.reaction-btn:active {
+  opacity: 0.7;
+}
+
+.reaction-active {
+  border: 1rpx solid #8b5cf6;
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+}
+
+.reaction-count {
+  font-size: 22rpx;
+  margin-left: 2rpx;
+}
+
+/* 愿望 */
+.wish-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.wish-item {
+  padding: 20rpx;
+  background: #252540;
+  border-radius: 16rpx;
+}
+
+.wish-name {
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.wish-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 12rpx;
+  align-items: center;
+}
+
+.wish-members-toggle {
+  margin-left: 4rpx;
+}
+
+.text-sm {
+  font-size: 22rpx;
+}

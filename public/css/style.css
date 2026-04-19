@@ -15,7 +15,7 @@
   --red: #ef4444;
   --blue: #3b82f6;
   --border: #334155;
-  --radius: 12px;
+  --radius: 8px;
 }
 
 body {
@@ -25,7 +25,7 @@ body {
   min-height: 100vh;
   max-width: 480px;
   margin: 0 auto;
-  padding-bottom: 70px;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom));
   -webkit-font-smoothing: antialiased;
 }
 
@@ -47,7 +47,7 @@ body {
   flex: 1;
   text-align: center;
   padding: 8px 4px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
   cursor: pointer;
   transition: color 0.2s;
@@ -59,8 +59,16 @@ body {
 .page { display: none; padding: 16px; }
 .page.active { display: block; }
 
+/* V2.6 - Tab bar 组件（行为页 P10 等） */
+.tab-bar { display: flex; background: var(--bg-card-light); border-radius: 8px; padding: 2px; margin-bottom: 16px; }
+.tab-bar-item { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; font-weight: 400; color: var(--text-dim); border-radius: 6px; border: none; background: transparent; cursor: pointer; min-height: 36px; }
+.tab-bar-item.active { background: var(--primary); color: #fff; font-weight: 600; }
+
 /* Header */
 .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-bright);
@@ -78,9 +86,10 @@ body {
   background: var(--bg-card);
   border-radius: var(--radius);
   padding: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   border: 1px solid var(--border);
 }
+.card-tight { margin-bottom: 8px; }
 .card-title {
   font-size: 15px;
   font-weight: 600;
@@ -95,7 +104,7 @@ body {
   min-height: 44px; /* V25-039 - 确保触控区域 >= 44px */
   border: none;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -532,7 +541,7 @@ body {
 /* V25-049 - 合成摘要栏吸底固定 */
 .synth-summary {
   position: fixed;
-  bottom: 70px;
+  bottom: calc(70px + env(safe-area-inset-bottom));
   left: 0;
   right: 0;
   display: flex;
@@ -570,4 +579,108 @@ input[type="range"]::-webkit-slider-thumb {
 }
 #page-family .item-row:hover {
   background: inherit;
+}
+
+/* V2.6 P5+P6 - 成员网格 */
+.member-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.member-cell { display: flex; flex-direction: column; align-items: center; padding: 12px 8px; background: var(--bg-card-light); border-radius: 8px; cursor: pointer; }
+.member-cell:active { opacity: 0.8; }
+.member-avatar-wrap { position: relative; width: 40px; height: 40px; }
+.member-avatar-wrap img, .member-avatar-wrap .feed-avatar { width: 40px; height: 40px; }
+.member-status-dot { position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg-card); }
+.member-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; margin-top: 4px; color: var(--text); }
+.member-realm { font-size: 10px; padding: 2px 6px; margin-top: 2px; display: inline-block; background: linear-gradient(135deg, var(--primary), var(--gold)); border-radius: 20px; font-weight: 600; color: white; }
+
+/* V2.6 - Tab Bar 统一样式 */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.tab-bar-item {
+  flex: 1;
+  text-align: center;
+  padding: 10px 14px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-card-light);
+  color: var(--text-dim);
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.tab-bar-item:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.tab-bar-item:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.tab-bar-item.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* V2.6 - page-header 补充 flex 布局 */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* V2.6 P11 - 筛选折叠行 */
+.filter-collapsed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 12px 16px;
+}
+
+.filter-collapsed-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.filter-collapsed-summary {
+  font-size: 12px;
+  color: var(--text-dim);
+  flex: 1;
+  text-align: right;
+  margin: 0 8px;
+}
+
+.filter-collapsed-indicator {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* V2.6 P12 - 团队进度网格 */
+.team-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.team-grid-cell {
+  padding: 6px 8px;
+  background: var(--bg-card-light);
+  border-radius: 6px;
+}
+
+.team-grid-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.team-grid-status {
+  font-size: 12px;
 }

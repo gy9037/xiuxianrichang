@@ -8,7 +8,7 @@ router.use(authMiddleware);
 // GET /api/family/members — get family members with basic stats
 router.get('/members', (req, res) => {
   const members = db.prepare(
-    `SELECT u.id, u.name, c.realm_stage,
+    `SELECT u.id, u.name, u.status, c.realm_stage,
      c.physique, c.comprehension, c.willpower, c.dexterity, c.perception
      FROM users u JOIN characters c ON u.id = c.user_id
      WHERE u.family_id = ?`

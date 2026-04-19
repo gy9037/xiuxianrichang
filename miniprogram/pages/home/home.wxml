@@ -1,0 +1,131 @@
+<view class="page-container" wx:if="{{!loading}}">
+
+  <!-- Hero 区域 -->
+  <view class="card" wx:if="{{character}}">
+    <!-- 第一行：角色名 + 状态 -->
+    <view class="flex-between">
+      <text style="font-size:40rpx;font-weight:700;color:#f8fafc">{{character.name}}</text>
+      <view bindtap="showStatusPicker" class="env-badge" style="background:{{envBadgeColor}}">
+        {{character.status || '居家'}} ▾
+      </view>
+    </view>
+
+    <!-- 第二行：境界 + 修炼状态 + 加成/缓冲，同行 wrap -->
+    <view style="display:flex;flex-wrap:wrap;gap:12rpx;margin-top:12rpx;align-items:center">
+      <view class="realm-badge">{{character.realm_stage}}</view>
+      <text wx:if="{{cultivationStatus}}" style="font-size:26rpx;font-weight:600;color:{{cvLevelColor}}">{{cvLevelPrefix}}{{cultivationStatus.level}} · {{cultivationStatus.activeDays}}/7天 · {{cultivationStatus.activeCategories}}类</text>
+      <text wx:if="{{cultivationStatus}}" bindtap="showCultivationHelp" class="text-dim" style="font-size:24rpx;padding:4rpx 8rpx">?</text>
+      <text wx:if="{{showDropBonus}}" class="text-gold" style="font-size:24rpx">良品+{{dropBonusText}}%</text>
+      <text wx:if="{{showBufferAdjust}}" class="text-red" style="font-size:24rpx">缓冲{{cultivationStatus.bufferAdjust}}天</text>
+    </view>
+
+    <!-- 第三行（条件）：nextLevelHint -->
+    <view wx:if="{{cultivationStatus.nextLevelHint}}" style="margin-top:8rpx">
+      <text class="text-dim" style="font-size:24rpx">{{cultivationStatus.nextLevelHint}}</text>
+    </view>
+  </view>
+
+  <!-- 属性总览 - 雷达图 -->
+  <view class="card radar-card" wx:if="{{character}}">
+    <canvas type="2d" id="radarCanvas" style="width:100%;height:520rpx;"></canvas>
+  </view>
+
+  <!-- 修炼趋势 -->
+  <view class="card" wx:if="{{trendBars.length > 0}}">
+    <view class="card-title" style="margin-bottom:16rpx">修炼趋势</view>
+
+    <view style="display:flex;align-items:stretch;">
+      <!-- 左侧：柱状图 -->
+      <view style="flex:1;display:flex;align-items:flex-end;justify-content:center;gap:12rpx;padding:8rpx 0">
+        <view wx:for="{{trendBars}}" wx:key="day" style="display:flex;flex-direction:column;align-items:center;width:56rpx">
+          <text style="font-size:20rpx;color:#94a3b8;height:32rpx;line-height:32rpx">{{item.totalText}}</text>
+          <view class="trend-bar {{item.barClass}}" style="height:{{item.barHeightRpx}}rpx">
+            <view wx:for="{{item.blocks}}" wx:for-item="block" wx:key="attr"
+              style="width:100%;height:{{block.pct}}%;background:{{block.color}};border-radius:{{block.radius}}">
+            </view>
+            <view wx:if="{{item.blocks.length === 0}}" style="width:100%;height:4rpx;background:#334155;border-radius:2rpx"></view>
+          </view>
+          <text class="{{item.dayClass}}">{{item.weekday}}</text>
+        </view>
+      </view>
+
+      <!-- 右侧：图例竖列 -->
+      <view style="display:flex;flex-direction:column;justify-content:center;gap:12rpx;margin-left:20rpx;padding:8rpx 0;">
+        <view wx:for="{{legendItems}}" wx:key="key" class="flex-row" style="gap:8rpx">
+          <view style="width:16rpx;height:16rpx;border-radius:4rpx;background:{{item.color}};flex-shrink:0;"></view>
+          <text style="font-size:20rpx;white-space:nowrap;" class="text-dim">{{item.short}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 今日推荐 -->
+  <view class="card" wx:if="{{recommendations}}">
+    <view class="card-title">✨ 今日推荐</view>
+
+    <view wx:if="{{recommendations.type === 'first_behavior'}}" class="recommend-action" bindtap="goToBehavior">
+      <text style="font-size:26rpx;color:#e2e8f0;flex:1;">先去上报一次行为，获得你的第一个道具</text>
+      <text class="text-primary" style="font-size:26rpx;flex-shrink:0;">去上报 →</text>
+    </view>
+
+    <view wx:elif="{{recommendations.type === 'synthesize'}}" class="recommend-action" bindtap="goToInventory">
+      <text style="font-size:26rpx;color:#e2e8f0;flex:1;">道具已就绪，去背包合成提升属性</text>
+      <text class="text-primary" style="font-size:26rpx;flex-shrink:0;">去合成 →</text>
+    </view>
+
+    <view wx:elif="{{recommendations.type === 'more_behaviors'}}" class="recommend-action" bindtap="goToBehavior">
+      <text style="font-size:26rpx;color:#e2e8f0;flex:1;">道具不够合成（需同属性累计10点），继续积攒</text>
+      <text class="text-primary" style="font-size:26rpx;flex-shrink:0;">去上报 →</text>
+    </view>
+
+    <view wx:elif="{{recommendations.type === 'weak'}}">
+      <view wx:for="{{recommendations.items}}" wx:key="category" 
+        class="recommend-action {{index > 0 ? 'recommend-action-border' : ''}}"
+        bindtap="goToBehavior" data-category="{{item.category}}">
+        <view style="flex:1;min-width:0;">
+          <text style="font-size:26rpx;color:#e2e8f0">强化 </text>
+          <text style="font-size:26rpx;color:#f59e0b;font-weight:600;">{{item.label}}</text>
+          <text style="font-size:24rpx;color:#94a3b8;margin-left:8rpx;">上报「{{item.category}}」</text>
+        </view>
+        <text class="text-primary" style="font-size:26rpx;flex-shrink:0;">→</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 成就 -->
+  <view class="card" wx:if="{{achievements.length > 0}}">
+    <view class="flex-between" bindtap="toggleAchievements">
+      <view class="flex-row" style="gap:16rpx">
+        <text class="card-title" style="margin-bottom:0">成就 {{unlockedCount}}/{{achievements.length}}</text>
+        <text wx:if="{{latestAchievement}}" class="text-dim" style="font-size:24rpx">
+          最近：{{latestAchievement}}
+        </text>
+      </view>
+      <text class="text-dim">{{achievementsExpanded ? '▴' : '▾'}}</text>
+    </view>
+
+    <view wx:if="{{achievementsExpanded}}" style="margin-top:16rpx">
+      <view wx:for="{{achievements}}" wx:key="id" 
+        class="{{item.achClass}}"
+        style="opacity:{{item.achOpacity}}">
+        <view class="flex-between">
+          <text style="font-size:28rpx">{{item.icon}} {{item.name}}</text>
+          <text class="text-dim" style="font-size:24rpx">{{item.achLabel}}</text>
+        </view>
+        <text class="text-dim" style="font-size:24rpx">{{item.description}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 底部 -->
+  <view style="display:flex;justify-content:center;align-items:center;gap:32rpx;margin-top:40rpx;padding-bottom:32rpx">
+    <text class="text-dim" style="font-size:24rpx" bindtap="logout">退出登录</text>
+    <text class="text-dim" style="font-size:20rpx">v{{appVersion}}</text>
+  </view>
+
+</view>
+
+<!-- 加载中 -->
+<view wx:if="{{loading}}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:120rpx 0">
+  <view style="font-size:26rpx;color:#94a3b8">加载中...</view>
+</view>

@@ -133,6 +133,19 @@ router.post('/', (req, res) => {
     return res.status(400).json({ error: '无效的行为类型' });
   }
 
+  // 早起时间校验
+  if (category === '生活习惯' && sub_type === '早起') {
+    const wakeupTime = req.body.wakeup_time;
+    if (wakeupTime) {
+      const [h, m] = wakeupTime.split(':').map(Number);
+      const totalMin = h * 60 + m;
+      if (isNaN(totalMin) || totalMin < 270 || totalMin > 720) { // 4:30-12:00 宽松范围
+        return res.status(400).json({ error: '起床时间不合理，请输入 4:30-12:00 之间的时间' });
+      }
+    }
+    // 如果在 5:30-8:30 窗口内提交但没传 wakeup_time，也允许（前端自动记录）
+  }
+
   const cultivation = getCultivationStatus(req.user.id);
 
   // Determine quality by probability

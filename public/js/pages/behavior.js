@@ -61,12 +61,10 @@ const BehaviorPage = {
   // V25-038 - 抽取 tab bar 渲染，消除三处重复
   renderTabBar() {
     return `
-      <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
-        <button class="btn btn-small ${this.activeTab === 'report' ? 'btn-primary' : 'btn-secondary'}"
-          style="border-radius:6px 0 0 0"
+      <div class="tab-bar">
+        <button class="tab-bar-item ${this.activeTab === 'report' ? 'active' : ''}"
           onclick="BehaviorPage.switchTab('report')">上报</button>
-        <button class="btn btn-small ${this.activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}"
-          style="border-radius:0 6px 0 0"
+        <button class="tab-bar-item ${this.activeTab === 'history' ? 'active' : ''}"
           onclick="BehaviorPage.switchTab('history')">历史</button>
       </div>
     `;
@@ -86,9 +84,17 @@ const BehaviorPage = {
     }
 
     const cats = Object.keys(this.categories || {});
+
+    // V2.6 P9 - 新用户首屏充实：无快捷入口时自动展开第一个分类
+    const hasShortcuts = (this.shortcuts && this.shortcuts.length > 0) || !!this.lastBehavior;
+    if (this.selectedCategory === null && !hasShortcuts && cats.length > 0) {
+      this.selectedCategory = cats[0];
+    }
+
     const list = this.selectedCategory ? (this.categories[this.selectedCategory] || []) : [];
 
     container.innerHTML = tabBar + `
+      <div class="page-header">行为</div>
       <div class="card">
         ${this.renderInlineShortcuts()}
         <div class="card-title" style="margin-bottom:8px">选择行为类型</div>
@@ -322,6 +328,35 @@ const BehaviorPage = {
   renderInlineInputForm() {
     const e = API.escapeHtml.bind(API);
     const isExercise = this.selectedCategory === '身体健康';
+
+    // 早起时间处理
+    const isEarlyRise = this.selectedCategory === '生活习惯' && this.selectedBehavior === '早起';
+    let earlyRiseHtml = '';
+    if (isEarlyRise) {
+      const now = new Date();
+      const hour = now.getHours();
+      const minute = now.getMinutes();
+      const currentMinutes = hour * 60 + minute;
+      const isInWindow = currentMinutes >= 330 && currentMinutes <= 510; // 5:30-8:30
+      if (isInWindow) {
+        const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        earlyRiseHtml = `
+          <div style="font-size:13px;color:var(--green);margin-bottom:8px">
+            当前时间 ${timeStr}，在早起时间窗口内（5:30-8:30），将自动记录起床时间
+          </div>
+          <input type="hidden" id="wakeup-time" value="${timeStr}">
+        `;
+      } else {
+        earlyRiseHtml = `
+          <div style="margin-bottom:8px">
+            <label style="font-size:13px;color:var(--text-dim);display:block;margin-bottom:4px">起床时间（不在 5:30-8:30 窗口内，请手动输入）</label>
+            <input type="time" id="wakeup-time" value="" min="04:00" max="12:00"
+              style="background:var(--bg-card-light);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:14px;width:100%">
+          </div>
+        `;
+      }
+    }
+
     return `
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)" id="input-form-card">
         <div style="font-size:14px;font-weight:600;margin-bottom:8px">${e(this.selectedBehavior)}</div>
@@ -336,6 +371,7 @@ const BehaviorPage = {
             </select>
           </div>
         ` : ''}
+        ${earlyRiseHtml}
         <div class="form-group" style="margin-bottom:10px">
           <label>备注（可选）</label>
           <input type="text" id="behavior-desc" placeholder="例如：晚饭后散步30分钟">
@@ -582,6 +618,21 @@ const BehaviorPage = {
 
       if (this.selectedCategory === '身体健康') {
         body.intensity = document.getElementById('behavior-intensity')?.value || '低强度';
+      }
+
+      // 早起时间处理
+      if (this.selectedCategory === '生活习惯' && this.selectedBehavior === '早起') {
+        const wakeupTime = document.getElementById('wakeup-time')?.value;
+        if (!wakeupTime) {
+          App.toast('请输入起床时间', 'error');
+          this.submitting = false;
+          const resetBtn = document.getElementById('submit-btn');
+          if (resetBtn) { resetBtn.disabled = false; resetBtn.textContent = '提交'; }
+          return;
+        }
+        body.wakeup_time = wakeupTime;
+        // 将起床时间写入 description
+        body.description = `起床时间：${wakeupTime}${body.description ? `，${body.description}` : ''}`;
       }
 
       const result = await API.post('/behavior', body);

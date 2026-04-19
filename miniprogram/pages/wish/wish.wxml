@@ -1,0 +1,391 @@
+<view class="page-container">
+
+  <!-- ==================== 列表视图 ==================== -->
+  <block wx:if="{{view === 'list'}}">
+    <!-- 标题栏 -->
+    <view class="flex-between" style="margin-bottom: 32rpx;">
+      <view style="font-size: 40rpx; font-weight: 700; color: #f8fafc;">愿望池</view>
+      <button class="btn btn-primary btn-small" bindtap="goCreate">许愿</button>
+    </view>
+
+    <!-- 加载中 -->
+    <view wx:if="{{loading}}" class="empty-state">加载中...</view>
+
+    <block wx:elif="{{wishes.length === 0}}">
+      <view class="empty-state">
+        <view style="font-size: 48rpx; margin-bottom: 16rpx;">🌟</view>
+        <view>还没有愿望，许一个试试？</view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <!-- 筛选面板 -->
+      <block wx:if="{{showFilter}}">
+        <!-- 折叠态 -->
+        <view wx:if="{{!filterExpanded}}" class="card card-tight" bindtap="toggleFilter">
+          <view class="flex-between">
+            <view class="text-dim" style="font-size: 24rpx;">
+              筛选：{{filterTypeLabel}} · {{filterStatusLabel}}
+            </view>
+            <view class="text-dim" style="font-size: 22rpx;">展开 ▼</view>
+          </view>
+        </view>
+
+        <!-- 展开态 -->
+        <view wx:else class="card" style="margin-bottom: 32rpx;">
+          <view class="flex-between" style="margin-bottom: 20rpx;">
+            <view style="font-size: 26rpx; font-weight: 600;">筛选</view>
+            <view class="text-dim" style="font-size: 22rpx;" bindtap="toggleFilter">收起 ▲</view>
+          </view>
+
+          <view style="margin-bottom: 16rpx;">
+            <view class="text-dim" style="font-size: 24rpx; margin-bottom: 8rpx;">类型</view>
+            <view class="flex-row" style="flex-wrap: wrap; gap: 12rpx;">
+              <view class="filter-chip {{filterType === '' ? 'filter-chip-active' : ''}}" bindtap="setFilterType" data-val="">全部</view>
+              <view class="filter-chip {{filterType === '单人' ? 'filter-chip-active' : ''}}" bindtap="setFilterType" data-val="单人">单人</view>
+              <view class="filter-chip {{filterType === '团队' ? 'filter-chip-active' : ''}}" bindtap="setFilterType" data-val="团队">团队</view>
+            </view>
+          </view>
+
+          <view style="margin-bottom: 16rpx;">
+            <view class="text-dim" style="font-size: 24rpx; margin-bottom: 8rpx;">状态</view>
+            <view class="flex-row" style="flex-wrap: wrap; gap: 12rpx;">
+              <view class="filter-chip {{filterStatus === '' ? 'filter-chip-active' : ''}}" bindtap="setFilterStatus" data-val="">全部</view>
+              <view class="filter-chip {{filterStatus === '待挑战' ? 'filter-chip-active' : ''}}" bindtap="setFilterStatus" data-val="待挑战">待挑战</view>
+              <view class="filter-chip {{filterStatus === '进行中' ? 'filter-chip-active' : ''}}" bindtap="setFilterStatus" data-val="进行中">进行中</view>
+              <view class="filter-chip {{filterStatus === '已完成' ? 'filter-chip-active' : ''}}" bindtap="setFilterStatus" data-val="已完成">已完成</view>
+              <view class="filter-chip {{filterStatus === '已兑现' ? 'filter-chip-active' : ''}}" bindtap="setFilterStatus" data-val="已兑现">已兑现</view>
+            </view>
+          </view>
+
+          <view wx:if="{{filterType || filterStatus}}" class="text-primary" style="font-size: 24rpx;" bindtap="clearFilter">清除筛选</view>
+        </view>
+      </block>
+
+      <!-- 待挑战愿望列表 -->
+      <block wx:if="{{pendingWishes.length > 0}}">
+        <view wx:for="{{pendingWishes}}" wx:key="id" class="card">
+          <!-- 标签行 -->
+          <view class="flex-row" style="gap: 12rpx; margin-bottom: 12rpx;">
+            <view class="tag" style="background:{{item.type === '团队' ? 'rgba(59,130,246,0.15)' : '#252540'}};color:{{item.type === '团队' ? '#60a5fa' : '#94a3b8'}};">{{item.type}}</view>
+            <view class="tag" style="background:{{item.statusColor}};color:#fff;">{{item.statusLabel}}</view>
+          </view>
+
+          <!-- 难度星级 -->
+          <view class="flex-row" style="margin-bottom: 8rpx;">
+            <view wx:for="{{item.stars}}" wx:for-item="star" wx:key="index" style="font-size: 28rpx; margin-right: 4rpx;">
+              <text wx:if="{{star.filled}}" style="color: #f59e0b;">★</text>
+              <text wx:else style="color: #334155;">★</text>
+            </view>
+          </view>
+
+          <!-- 名称 -->
+          <view style="font-size: 32rpx; font-weight: 600; color: #f8fafc; margin-bottom: 8rpx;">{{item.name}}</view>
+
+          <!-- 描述 -->
+          <view wx:if="{{item.description}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 12rpx;">{{item.description}}</view>
+
+          <!-- 奖励 -->
+          <view class="flex-row" style="margin-bottom: 12rpx;">
+            <text class="text-gold" style="font-size: 26rpx;">🎁 {{item.reward_description}}</text>
+          </view>
+
+          <!-- Boss 预估战力 -->
+          <view wx:if="{{item.bossMin > 0}}" class="text-dim" style="font-size: 24rpx; margin-bottom: 12rpx;">
+            Boss 预估战力：{{item.bossMin}} ~ {{item.bossMax}}
+          </view>
+
+          <!-- 团队进度 -->
+          <view wx:if="{{item.isTeam && item.teamTotal > 0}}" style="margin-bottom: 12rpx;">
+            <view class="text-dim" style="font-size: 24rpx; margin-bottom: 8rpx;">团队进度：{{item.teamDone}}/{{item.teamTotal}}</view>
+            <view class="flex-row" style="flex-wrap: wrap; gap: 8rpx;">
+              <view wx:for="{{item.teamProgress}}" wx:for-item="member" wx:key="id"
+                class="tag" style="{{member.status === 'completed' ? 'background:#10b981;color:#fff;' : ''}}">
+                {{member.name}}
+              </view>
+            </view>
+          </view>
+
+          <!-- 挑战按钮 -->
+          <button wx:if="{{item.canChallenge}}" class="btn btn-primary" style="margin-top: 8rpx;" bindtap="goChallenge" data-id="{{item.id}}">
+            挑战
+          </button>
+          <view wx:elif="{{item.isTeam && item.myTeamDone}}" class="text-green" style="font-size: 24rpx; margin-top: 8rpx;">✓ 你已通过</view>
+        </view>
+      </block>
+
+      <!-- 已完成愿望列表 -->
+      <block wx:if="{{completedWishes.length > 0}}">
+        <view style="font-size: 26rpx; color: #94a3b8; margin: 24rpx 0 16rpx;">已完成</view>
+        <view wx:for="{{completedWishes}}" wx:key="id" class="card" style="opacity: 0.6;">
+          <view class="flex-between">
+            <view>
+              <view style="font-size: 28rpx; color: #f8fafc;">{{item.name}}</view>
+              <view class="text-dim" style="font-size: 24rpx;">{{item.reward_description}}</view>
+            </view>
+            <block wx:if="{{item.isCompleted}}">
+              <button class="btn btn-primary btn-small" bindtap="redeemWish" data-id="{{item.id}}">兑现</button>
+            </block>
+            <block wx:elif="{{item.isRedeemed}}">
+              <view class="text-dim" style="font-size: 24rpx;">已兑现 ✓</view>
+            </block>
+          </view>
+        </view>
+      </block>
+
+      <!-- 筛选无结果 -->
+      <view wx:if="{{pendingWishes.length === 0 && completedWishes.length === 0}}" class="empty-state">
+        没有符合条件的愿望
+      </view>
+    </block>
+  </block>
+
+  <!-- ==================== 创建愿望视图 ==================== -->
+  <block wx:elif="{{view === 'create'}}">
+    <!-- 标题栏 -->
+    <view class="flex-row" style="margin-bottom: 32rpx;">
+      <view class="text-dim" style="margin-right: 16rpx; font-size: 26rpx; min-height: 88rpx; display: flex; align-items: center;" bindtap="backToList">← 返回</view>
+      <view style="font-size: 40rpx; font-weight: 700; color: #f8fafc;">许愿</view>
+    </view>
+
+    <!-- 名称 -->
+    <view class="form-group">
+      <view class="flex-between">
+        <view class="form-label">愿望名称</view>
+        <view class="text-dim" style="font-size: 22rpx;">{{formNameLen}}/20</view>
+      </view>
+      <input class="form-input" placeholder="给愿望起个名字" maxlength="20" value="{{formName}}" bindinput="onFormNameInput" />
+    </view>
+
+    <!-- 类型 -->
+    <view class="form-group">
+      <view class="form-label">类型</view>
+      <picker range="{{typeOptions}}" value="{{formTypeIndex}}" bindchange="onFormTypeChange">
+        <view class="form-input flex-between">
+          <text>{{formType}}</text>
+          <text class="text-dim">▼</text>
+        </view>
+      </picker>
+    </view>
+
+    <!-- 难度 -->
+    <view class="form-group">
+      <view class="flex-between">
+        <view class="form-label">难度</view>
+        <view class="text-gold" style="font-size: 28rpx; font-weight: 600;">{{formDifficulty}}</view>
+      </view>
+      <slider min="1" max="10" step="1" value="{{formDifficulty}}" activeColor="#8b5cf6" backgroundColor="#334155" block-size="20" bindchange="onFormDifficultyChange" />
+      <view class="flex-between" style="margin-top: 4rpx;">
+        <view wx:for="{{difficultyAnchors}}" wx:key="val" class="text-dim" style="font-size: 20rpx;">{{item.label}}</view>
+      </view>
+    </view>
+
+    <!-- 奖励 -->
+    <view class="form-group">
+      <view class="flex-between">
+        <view class="form-label">奖励描述</view>
+        <view class="text-dim" style="font-size: 22rpx;">{{formRewardLen}}/30</view>
+      </view>
+      <input class="form-input" placeholder="完成后可以获得什么？" maxlength="30" value="{{formReward}}" bindinput="onFormRewardInput" />
+    </view>
+
+    <!-- 描述（可选展开） -->
+    <view class="form-group">
+      <view class="form-label" bindtap="toggleDescExpand" style="display: flex; align-items: center;">
+        <text>详细描述（可选）</text>
+        <text class="text-dim" style="font-size: 22rpx; margin-left: 8rpx;">{{formDescExpanded ? '收起 ▲' : '展开 ▼'}}</text>
+      </view>
+      <textarea wx:if="{{formDescExpanded}}" class="form-textarea" placeholder="补充说明..." value="{{formDesc}}" bindinput="onFormDescInput" auto-height maxlength="200" />
+    </view>
+
+    <!-- 创建按钮 -->
+    <button class="btn btn-primary" style="margin-top: 16rpx;" bindtap="submitWish" disabled="{{submitting}}">
+      {{submitting ? '创建中...' : '创建愿望'}}
+    </button>
+  </block>
+
+  <!-- ==================== Boss 战斗视图 ==================== -->
+  <block wx:elif="{{view === 'battle'}}">
+    <!-- 标题栏 -->
+    <view class="flex-row" style="margin-bottom: 32rpx;">
+      <view class="text-dim" style="margin-right: 16rpx; font-size: 26rpx; min-height: 88rpx; display: flex; align-items: center;" bindtap="backToList">← 返回</view>
+      <view style="font-size: 40rpx; font-weight: 700; color: #f8fafc;">Boss 挑战</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="empty-state">准备中...</view>
+
+    <block wx:else>
+      <!-- 愿望信息 -->
+      <view class="card">
+        <view class="flex-row" style="gap: 12rpx; margin-bottom: 8rpx;">
+          <view class="tag">{{battleWish.type}}</view>
+          <view class="text-gold" style="font-size: 24rpx;">🎁 {{battleWish.reward_description}}</view>
+        </view>
+        <view style="font-size: 30rpx; font-weight: 600; color: #f8fafc;">{{battleWish.name}}</view>
+      </view>
+
+      <!-- Boss 信息 -->
+      <view class="card">
+        <view class="card-title">👹 {{boss.name}}</view>
+        <view wx:if="{{boss.description}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 16rpx;">{{boss.description}}</view>
+
+        <view class="flex-between" style="margin-bottom: 16rpx;">
+          <view class="text-dim" style="font-size: 26rpx;">总战力：<text class="text-red" style="font-weight: 600;">{{boss.total_power}}</text></view>
+          <view style="font-size: 26rpx; font-weight: 600; color: {{winRateColor}};">{{winRateText}}</view>
+        </view>
+
+        <!-- Boss 属性进度条 -->
+        <view wx:for="{{bossAttrList}}" wx:key="key" style="margin-bottom: 12rpx;">
+          <view class="flex-between" style="margin-bottom: 4rpx;">
+            <view class="text-dim" style="font-size: 22rpx;">{{item.name}}</view>
+            <view style="font-size: 22rpx; color: {{item.color}};">{{item.value}}</view>
+          </view>
+          <view class="progress-bar-bg">
+            <view class="progress-bar-fill" style="width: {{item.pct}}%; background: {{item.color}};"></view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 装备道具 -->
+      <view class="card">
+        <view class="card-title">⚔️ 装备道具</view>
+
+        <block wx:if="{{items.length === 0}}">
+          <view class="text-dim" style="font-size: 26rpx;">暂无可用道具</view>
+        </block>
+
+        <block wx:else>
+          <view wx:for="{{items}}" wx:key="id" class="item-row {{item.checked ? 'item-row-selected' : ''}}" bindtap="toggleItem" data-id="{{item.id}}">
+            <view class="flex-row" style="flex: 1;">
+              <view class="item-checkbox {{item.checked ? 'item-checkbox-checked' : ''}}">
+                <text wx:if="{{item.checked}}">✓</text>
+              </view>
+              <view style="margin-left: 16rpx;">
+                <view style="font-size: 28rpx; color: #f8fafc;">{{item.name}}</view>
+                <view class="text-dim" style="font-size: 22rpx;">{{item.attrLabel}} +{{item.temp_value}}</view>
+              </view>
+            </view>
+            <view class="tag" style="font-size: 20rpx;">{{item.quality}}</view>
+          </view>
+
+          <view wx:if="{{itemBonusTotal > 0}}" style="margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #334155;">
+            <view class="text-dim" style="font-size: 24rpx;">道具加成总计：<text class="text-green" style="font-weight: 600;">+{{itemBonusTotal}}</text></view>
+          </view>
+        </block>
+      </view>
+
+      <!-- 开始挑战按钮 -->
+      <button class="btn btn-primary" style="margin-top: 16rpx;" bindtap="executeBattle" disabled="{{submitting}}">
+        {{submitting ? '战斗中...' : '开始挑战'}}
+      </button>
+    </block>
+  </block>
+
+  <!-- ==================== 战斗结果视图 ==================== -->
+  <block wx:elif="{{view === 'result'}}">
+
+    <!-- Boss 信息 + 属性 -->
+    <view class="card">
+      <view class="card-title">👹 {{resultBoss.name}}</view>
+      <view wx:for="{{resultBossAttrList}}" wx:key="key" style="margin-bottom: 8rpx;">
+        <view class="flex-between" style="margin-bottom: 4rpx;">
+          <view class="text-dim" style="font-size: 22rpx;">{{item.name}}</view>
+          <view style="font-size: 22rpx; color: {{item.color}};">{{item.value}}</view>
+        </view>
+        <view class="progress-bar-bg">
+          <view class="progress-bar-fill" style="width: {{item.pct}}%; background: {{item.color}};"></view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 战斗回合动画 -->
+    <view class="card">
+      <view class="card-title">⚔️ 战斗过程</view>
+      <view wx:for="{{visibleRounds}}" wx:key="round" class="round-item" style="animation: fadeIn 0.3s ease;">
+        <view class="text-gold" style="font-size: 24rpx; font-weight: 600; margin-bottom: 4rpx;">第{{item.round}}回合</view>
+        <view wx:if="{{item.description}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 4rpx;">{{item.description}}</view>
+        <view wx:if="{{item.userAction}}" style="font-size: 24rpx; color: #64b5f6;">你：{{item.userAction}}</view>
+        <view wx:if="{{item.bossAction}}" style="font-size: 24rpx; color: #e57373;">Boss：{{item.bossAction}}</view>
+      </view>
+      <view wx:if="{{!roundsComplete}}" class="text-dim" style="font-size: 24rpx; text-align: center; padding: 16rpx;">战斗中...</view>
+    </view>
+
+    <!-- 结果展示（回合播完后显示） -->
+    <block wx:if="{{roundsComplete}}">
+
+      <!-- 胜利/败北 -->
+      <view class="result-banner {{resultIsWin ? 'result-win' : 'result-lose'}}">
+        <view style="font-size: 48rpx;">{{resultIsWin ? '⚔️ 胜利' : '💀 败北'}}</view>
+      </view>
+
+      <!-- 战斗详情 -->
+      <view class="card">
+        <view class="card-title">📊 战斗详情</view>
+        <view class="detail-row">
+          <text class="text-dim">永久属性战力</text>
+          <text>{{resultDetail.userBasePower}}</text>
+        </view>
+        <view wx:if="{{resultDetail.userItemPower > 0}}" class="detail-row">
+          <text class="text-dim">道具加成</text>
+          <text class="text-green">+{{resultDetail.userItemPower}}</text>
+        </view>
+        <view wx:if="{{resultDetail.isCritical}}" class="detail-row">
+          <text class="text-dim">暴击伤害</text>
+          <text class="text-gold">×{{resultDetail.critDamage}}</text>
+        </view>
+        <view wx:if="{{resultDetail.isCombo}}" class="detail-row">
+          <text class="text-dim">连击</text>
+          <text class="text-gold">触发</text>
+        </view>
+        <view wx:if="{{resultDetail.damageReduction > 0}}" class="detail-row">
+          <text class="text-dim">减伤</text>
+          <text class="text-red">-{{resultDetail.damageReduction}}</text>
+        </view>
+        <view class="detail-row" style="border-top: 1rpx solid #334155; padding-top: 12rpx; margin-top: 8rpx;">
+          <text style="font-weight: 600;">最终战力</text>
+          <text style="font-weight: 600; color: #8b5cf6;">{{resultDetail.userFinalPower}}</text>
+        </view>
+        <view class="detail-row">
+          <text class="text-dim">Boss 战力</text>
+          <text class="text-red">{{resultDetail.bossPower}}</text>
+        </view>
+      </view>
+
+      <!-- 胜利：仪式感卡片 + 奖励 -->
+      <block wx:if="{{resultIsWin}}">
+        <view class="card victory-card">
+          <view style="font-size: 40rpx; text-align: center; margin-bottom: 16rpx;">🎉</view>
+          <view style="font-size: 32rpx; font-weight: 700; color: #f8fafc; text-align: center; margin-bottom: 12rpx;">愿望达成</view>
+          <view class="text-gold" style="font-size: 28rpx; text-align: center;">{{battleWish.reward_description}}</view>
+        </view>
+      </block>
+
+      <!-- 失败：属性对比 + 差距分析 -->
+      <block wx:else>
+        <view class="card">
+          <view class="card-title">📉 差距分析</view>
+          <view wx:for="{{attrComparison}}" wx:key="key" class="detail-row">
+            <view>
+              <text class="text-dim">{{item.name}}</text>
+              <text style="font-size: 22rpx; margin-left: 8rpx;">你 {{item.userVal}} / Boss {{item.bossVal}}</text>
+            </view>
+            <text style="font-size: 24rpx; color: {{item.diffColor}}; font-weight: 600;">{{item.diffLabel}}</text>
+          </view>
+        </view>
+
+        <view class="card">
+          <view class="card-title">💡 提升建议</view>
+          <view wx:for="{{attrComparison}}" wx:key="key">
+            <view wx:if="{{item.isWeak}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 8rpx;">
+              · {{item.name}}差距 {{item.diffAbs}}，建议多做相关行为提升
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <!-- 返回按钮 -->
+      <button class="btn btn-secondary" style="margin-top: 24rpx;" bindtap="backFromResult">返回愿望池</button>
+    </block>
+  </block>
+
+</view>

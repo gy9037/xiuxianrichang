@@ -11,6 +11,13 @@ services:
     environment:
       - DB_PATH=/data/data.db
       - NODE_ENV=production
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET=xiuxianrichang
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+      - WX_APPID=${WX_APPID}
+      - WX_APP_SECRET=${WX_APP_SECRET}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.xiuxian-game.rule=Host(`game.lifelab.rocks`)"

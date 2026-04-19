@@ -1,5 +1,9 @@
 const FamilyPage = {
   _pullState: null,
+  _membersCache: null,
+  _feedCache: null,
+  _wishesCache: null,
+  _feedDisplayCount: 10,
 
   // V2.5 V25-071 - 相对时间格式化
   formatRelativeTime(dateStr) {
@@ -41,6 +45,10 @@ const FamilyPage = {
     const members = membersResult.status === 'fulfilled' ? membersResult.value : null;
     const feed = feedResult.status === 'fulfilled' ? feedResult.value : null;
     const wishes = wishesResult.status === 'fulfilled' ? wishesResult.value : null;
+    this._membersCache = members;
+    this._feedCache = feed;
+    this._wishesCache = wishes;
+    this._feedDisplayCount = 10;
     this.render(members, feed, wishes);
 
     // V2.5 V25-091 - 首次加载后初始化下拉刷新
@@ -65,29 +73,33 @@ const FamilyPage = {
       <div class="card">
         <div class="card-title">家庭成员</div>
         ${safeMembers === null ? '<div class="empty-state" style="color:var(--red)">成员数据加载失败</div>' :
-          safeMembers.map((m) => {
-            const total = (m.physique + m.comprehension + m.willpower + m.dexterity + m.perception).toFixed(1);
-            return `
-              <div class="item-row" style="cursor:default">
-                <div class="feed-avatar" style="background:${this.avatarColor(m.name)};color:#fff">${e((m.name || '?').slice(0, 1))}</div>
-                <div class="item-info" style="margin-left:10px">
-                  <div class="item-name">${e(m.name)}</div>
-                  <div class="item-meta">
-                    <span class="realm-badge" style="font-size:11px;padding:2px 8px">${e(m.realm_stage)}</span>
-                    属性总和 ${total}
-                  </div>
+          safeMembers.length === 0 ? '<div class="empty-state">还没有其他家庭成员，邀请家人一起修炼吧</div>' :
+          (() => {
+            const statusColorMap = { 居家: '#10b981', 生病: '#ef4444', 出差: '#3b82f6' };
+            const renderCell = (m) => `
+              <div class="member-cell">
+                <div class="member-avatar-wrap">
+                  <div class="feed-avatar" style="background:${this.avatarColor(m.name)};color:#fff">${e((m.name || '?').slice(0, 1))}</div>
+                  <span class="member-status-dot" style="background:${statusColorMap[m.status] || '#10b981'}"></span>
                 </div>
-              </div>
-            `;
-          }).join('') +
-          (safeMembers.length === 0 ? '<div class="empty-state">还没有其他家庭成员，邀请家人一起修炼吧</div>' : '')}
+                <div class="member-name">${e(m.name)}</div>
+                <span class="member-realm">${e(m.realm_stage)}</span>
+              </div>`;
+            const visibleMembers = safeMembers.slice(0, 6);
+            const hiddenCount = safeMembers.length - 6;
+            let html = `<div class="member-grid" id="family-member-grid">${visibleMembers.map(renderCell).join('')}</div>`;
+            if (hiddenCount > 0) {
+              html += `<button id="family-members-expand" onclick="FamilyPage.expandMembers()" style="display:block;width:100%;padding:10px 0;background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px">+${hiddenCount} 查看全部</button>`;
+            }
+            return html;
+          })()}
       </div>
 
       <div class="card">
         <div class="card-title">最近动态</div>
         ${safeFeed === null ? '<div class="empty-state" style="color:var(--red)">动态数据加载失败</div>' :
           (safeFeed.length === 0 ? '<div class="empty-state">还没有动态</div>' :
-            safeFeed.map(f => `
+            safeFeed.slice(0, this._feedDisplayCount).map(f => `
               <div class="feed-item">
                 <div class="feed-avatar" style="background:${this.avatarColor(f.user_name)};color:#fff">${e((f.user_name || '?').slice(0, 1))}</div>
                 <div class="feed-content">
@@ -105,7 +117,7 @@ const FamilyPage = {
                     ${f.item_name ? `→ 获得 ${e(f.item_name)}` : ''}
                   </div>
                   <div class="feed-time">${this.formatRelativeTime(f.completed_at)}</div>
-                  ${`<div class="feed-reactions" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                  ${`<div class="feed-reactions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;padding:4px 0">
                     ${[
     { emoji: '👍', label: '赞' },
     { emoji: '💪', label: '强' },
@@ -120,15 +132,16 @@ const FamilyPage = {
     return `<button
       id="react-btn-${f.id}-${emoji}"
       onclick="FamilyPage.react(${f.id}, '${emoji}')"
-      style="border-radius:20px;padding:8px 14px;cursor:pointer;font-size:13px;min-height:44px;display:inline-flex;flex-direction:column;align-items:center;gap:2px;${highlight}"
+      style="border-radius:20px;padding:4px 10px;cursor:pointer;font-size:13px;height:36px;display:inline-flex;align-items:center;gap:2px;${highlight}"
       title="${e(label)}"
       ${reacted ? 'data-reacted="1"' : ''}
-    ><span>${emoji}${count > 0 ? ` ${count}` : ''}</span><span style="font-size:10px;color:var(--text-dim)">${label}</span></button>`;
+    ><span>${emoji}${count > 0 ? ` ${count}` : ''}</span></button>`;
   }).join('')}
-                  </div>`} <!-- V2-F06 FB-06 — 表情按钮组 -->
+                  </div>`} <!-- V2-F06 FB-06 — 表情按钮组（V2.6 紧凑化） -->
                 </div>
               </div>
-            `).join(''))}
+            `).join('') +
+            (safeFeed.length > this._feedDisplayCount ? `<button onclick="FamilyPage.loadMoreFeed()" style="display:block;width:100%;padding:10px 0;background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px;margin-top:8px">加载更多</button>` : ''))}
       </div>
 
       <div class="card">
@@ -143,11 +156,21 @@ const FamilyPage = {
                 <div style="padding:10px 0;border-bottom:1px solid var(--border)">
                   <div class="item-name">${e(w.name)}</div>
                   <div class="item-meta">状态：${w.status === 'pending' ? '待挑战' : w.status === 'in_progress' ? '进行中' : '已完成'}</div>
-                  <div class="item-meta" style="margin-top:4px">
-                    ${(w.teamProgress || []).map((p) => {
-                      const st = statusMap[p.status] || p.status;
-                      return `${e(p.name)}:${e(st)}`;
-                    }).join(' · ')}
+                  <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+                    ${(() => {
+                      const progress = w.teamProgress || [];
+                      const visibleP = progress.slice(0, 5);
+                      const hiddenP = progress.slice(5);
+                      const statusColor = s => (s === 'completed' ? 'var(--green)' : s === 'in_progress' ? 'var(--primary)' : 'var(--text-dim)');
+                      let tags = visibleP.map(p => `<span class="tag" style="color:${statusColor(p.status)}">${e(p.name)}:${e(statusMap[p.status] || p.status)}</span>`).join('');
+                      if (hiddenP.length > 0) {
+                        const hiddenId = `tp-hidden-${w.id}`;
+                        const allTags = progress.map(p => `<span class="tag" style="color:${statusColor(p.status)}">${e(p.name)}:${e(statusMap[p.status] || p.status)}</span>`).join('');
+                        tags += `<span id="${hiddenId}-dots" class="tag" style="cursor:pointer;color:var(--primary)" onclick="document.getElementById('${hiddenId}').style.display='flex';this.style.display='none'">+${hiddenP.length}人</span>`;
+                        tags += `<div id="${hiddenId}" style="display:none;flex-wrap:wrap;gap:4px;width:100%">${allTags}<span class="tag" style="cursor:pointer;color:var(--primary)" onclick="this.parentElement.style.display='none';document.getElementById('${hiddenId}-dots').style.display=''">收起</span></div>`;
+                      }
+                      return tags;
+                    })()}
                   </div>
                 </div>
               `;
@@ -221,6 +244,33 @@ const FamilyPage = {
       delete btn.dataset.reacting;
       btn.style.opacity = '';
       btn.style.pointerEvents = '';
+    }
+  },
+
+  // V2.6 P5+P6 - 展开全部成员
+  expandMembers() {
+    const grid = document.getElementById('family-member-grid');
+    const btn = document.getElementById('family-members-expand');
+    if (!grid || !this._membersCache) return;
+    const e = API.escapeHtml.bind(API);
+    const statusColorMap = { 居家: '#10b981', 生病: '#ef4444', 出差: '#3b82f6' };
+    grid.innerHTML = this._membersCache.map(m => `
+      <div class="member-cell">
+        <div class="member-avatar-wrap">
+          <div class="feed-avatar" style="background:${this.avatarColor(m.name)};color:#fff">${e((m.name || '?').slice(0, 1))}</div>
+          <span class="member-status-dot" style="background:${statusColorMap[m.status] || '#10b981'}"></span>
+        </div>
+        <div class="member-name">${e(m.name)}</div>
+        <span class="member-realm">${e(m.realm_stage)}</span>
+      </div>`).join('');
+    if (btn) btn.remove();
+  },
+
+  // V2.6 P7 - 加载更多 Feed
+  loadMoreFeed() {
+    this._feedDisplayCount += 10;
+    if (this._feedCache) {
+      this.render(this._membersCache, this._feedCache, this._wishesCache);
     }
   },
 

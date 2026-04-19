@@ -1,0 +1,263 @@
+/* 全局样式 - 修仙日常小程序 */
+
+page {
+  background: #0f0f1a;
+  color: #e2e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* 卡片 */
+.card {
+  background: #1a1a2e;
+  border-radius: 16rpx;
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  box-shadow: 0 0 0 1rpx rgba(51, 65, 85, 0.5);
+}
+
+.card-tight {
+  margin-bottom: 16rpx;
+}
+
+.card-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f8fafc;
+  margin-bottom: 16rpx;
+}
+
+/* 重置小程序 button 默认样式 */
+button {
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+  line-height: inherit;
+  box-sizing: border-box;
+}
+
+button::after {
+  display: none;
+}
+
+/* 按钮 */
+.btn {
+  padding: 20rpx 40rpx;
+  min-height: 88rpx;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  text-align: center;
+  border: none;
+  line-height: 1.4;
+}
+
+.btn-primary {
+  background: #8b5cf6;
+  color: #fff;
+}
+
+.btn-primary:active {
+  background: #7c3aed;
+}
+
+.btn-secondary {
+  background: #252540;
+  color: #e2e8f0;
+  border: 1rpx solid #334155;
+}
+
+.btn-small {
+  padding: 16rpx 28rpx;
+  min-height: 88rpx;
+  font-size: 24rpx;
+}
+
+/* 文字 */
+.text-bright { color: #f8fafc; }
+.text-dim { color: #94a3b8; }
+.text-gold { color: #f59e0b; }
+.text-green { color: #10b981; }
+.text-red { color: #ef4444; }
+.text-blue { color: #3b82f6; }
+.text-primary { color: #8b5cf6; }
+
+/* 布局 */
+.page-container {
+  padding: 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 境界徽章 */
+.realm-badge {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 16rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+  background: linear-gradient(135deg, #8b5cf6, #f59e0b);
+  color: #fff;
+}
+
+/* 标签 */
+.tag {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 16rpx;
+  font-size: 22rpx;
+  background: #252540;
+  color: #94a3b8;
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 48rpx 32rpx;
+  color: #94a3b8;
+  font-size: 28rpx;
+}
+
+/* 成员网格 */
+.member-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+}
+
+.member-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24rpx 16rpx;
+  background: #252540;
+  border-radius: 16rpx;
+}
+
+.member-avatar-wrap {
+  position: relative;
+  width: 64rpx;
+  height: 64rpx;
+}
+
+.member-avatar {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background: #334155;
+  opacity: 0.85;
+}
+
+.member-status-dot {
+  position: absolute;
+  bottom: -2rpx;
+  right: -2rpx;
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 50%;
+  border: 4rpx solid #252540;
+}
+
+.member-name {
+  font-size: 24rpx;
+  margin-top: 8rpx;
+  color: #e2e8f0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.member-realm {
+  font-size: 22rpx;
+  padding: 2rpx 12rpx;
+  margin-top: 4rpx;
+}
+
+/* Tab Bar 样式 */
+.tab-bar {
+  display: flex;
+  background: #252540;
+  border-radius: 12rpx;
+  padding: 4rpx;
+  margin-bottom: 32rpx;
+}
+
+.tab-bar-item {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx 0;
+  font-size: 28rpx;
+  font-weight: 400;
+  color: #cbd5e1;
+  border-radius: 12rpx;
+  border: none;
+  background: transparent;
+  min-height: 88rpx;
+  line-height: 1.4;
+}
+
+.tab-bar-item.active {
+  background: #8b5cf6;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 表单 */
+.form-group {
+  margin-bottom: 24rpx;
+}
+
+.form-label {
+  font-size: 26rpx;
+  color: #94a3b8;
+  margin-bottom: 8rpx;
+}
+
+.form-input {
+  background: #252540;
+  color: #e2e8f0;
+  border: 1rpx solid #334155;
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  font-size: 30rpx;
+  width: 100%;
+  height: 88rpx;
+  box-sizing: border-box;
+  line-height: 1.4;
+}
+
+.form-textarea {
+  background: #252540;
+  color: #e2e8f0;
+  border: 1rpx solid #334155;
+  border-radius: 16rpx;
+  padding: 16rpx 24rpx;
+  font-size: 28rpx;
+  width: 100%;
+  min-height: 120rpx;
+  box-sizing: border-box;
+}

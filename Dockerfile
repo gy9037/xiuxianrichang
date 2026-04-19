@@ -9,7 +9,7 @@ RUN npm ci --omit=dev
 
 COPY server/ ./server/
 COPY public/ ./public/
-COPY scripts/backup.sh ./scripts/
+COPY scripts/ ./scripts/
 
 RUN mkdir -p /data /backup
 

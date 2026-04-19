@@ -1,0 +1,105 @@
+<view class="page-container">
+  <!-- 加载中 -->
+  <view wx:if="{{loading}}" class="empty-state">加载中...</view>
+
+  <block wx:else>
+    <!-- 家庭成员 -->
+    <view class="card">
+      <view class="card-title">家庭成员</view>
+      <view wx:if="{{members.length === 0}}" class="empty-state">暂无成员</view>
+      <block wx:else>
+        <view class="member-grid">
+          <view class="member-cell" wx:for="{{membersVisible}}" wx:key="id">
+            <view class="member-avatar-wrap">
+              <view class="member-avatar flex-center" style="background:{{item.avatarColor}};">
+                <text class="avatar-initial">{{item.initial}}</text>
+              </view>
+              <view class="member-status-dot" style="background:{{item.statusColor}};"></view>
+            </view>
+            <text class="member-name">{{item.name}}</text>
+            <text class="member-realm realm-badge">{{item.realm_stage}}</text>
+          </view>
+        </view>
+        <view wx:if="{{membersExtra > 0}}" class="fold-action" bindtap="toggleMembers">
+          <text class="text-primary">{{membersCollapsed ? '+' + membersExtra + ' 查看全部' : '收起'}}</text>
+        </view>
+      </block>
+    </view>
+
+    <!-- 最近动态 -->
+    <view class="card">
+      <view class="card-title">最近动态</view>
+      <view wx:if="{{feedVisible.length === 0}}" class="empty-state">暂无动态</view>
+      <block wx:else>
+        <view class="feed-list">
+          <view class="feed-item" wx:for="{{feedVisible}}" wx:key="id" wx:for-index="feedIdx">
+            <view class="feed-header">
+              <view class="feed-avatar flex-center" style="background:{{item.avatarColor}};">
+                <text class="avatar-initial-sm">{{item.initial}}</text>
+              </view>
+              <view class="feed-info">
+                <view class="feed-top-row">
+                  <text class="feed-username">{{item.user_name}}</text>
+                  <text class="feed-time text-dim">{{item.timeAgo}}</text>
+                </view>
+                <view class="feed-desc">
+                  <text>完成了 {{item.sub_type}}</text>
+                  <text wx:if="{{item.quality}}" class="quality-tag" style="color:{{item.qualityColor}};">{{item.quality}}</text>
+                </view>
+                <text wx:if="{{item.item_name}}" class="feed-reward text-gold">获得 {{item.item_name}}</text>
+              </view>
+            </view>
+            <!-- 表情反应 -->
+            <view class="reaction-bar">
+              <button
+                wx:for="{{item.reactions}}"
+                wx:for-item="reaction"
+                wx:for-index="rIdx"
+                wx:key="emoji"
+                class="reaction-btn {{reaction.active ? 'reaction-active' : ''}}"
+                data-id="{{item.id}}"
+                data-emoji="{{reaction.emoji}}"
+                data-feedindex="{{feedIdx}}"
+                data-reactionindex="{{rIdx}}"
+                bindtap="onReact"
+              >
+                <text>{{reaction.emoji}}</text>
+                <text wx:if="{{reaction.count > 0}}" class="reaction-count">{{reaction.count}}</text>
+              </button>
+            </view>
+          </view>
+        </view>
+        <view wx:if="{{feedHasMore}}" class="fold-action" bindtap="loadMoreFeed">
+          <text class="text-primary">加载更多</text>
+        </view>
+      </block>
+    </view>
+
+    <!-- 团队愿望 -->
+    <view class="card">
+      <view class="card-title">团队愿望进度</view>
+      <view wx:if="{{wishes.length === 0}}" class="empty-state">暂无团队愿望</view>
+      <block wx:else>
+        <view class="wish-list">
+          <view class="wish-item" wx:for="{{wishesVisible}}" wx:key="id" wx:for-index="wishIdx">
+            <view class="flex-between">
+              <text class="wish-name text-bright">{{item.name}}</text>
+              <text class="tag">{{item.status}}</text>
+            </view>
+            <view class="wish-members">
+              <view class="tag" wx:for="{{item.members}}" wx:for-item="mp" wx:key="id" style="color:{{mp.statusColor}};">
+                {{mp.name}}：{{mp.statusLabel}}
+              </view>
+              <view wx:if="{{item.membersExtra > 0}}" class="wish-members-toggle" bindtap="toggleWishMembers" data-index="{{wishIdx}}">
+                <text class="text-primary text-sm">{{item.showAllMembers ? '收起' : '+' + item.membersExtra + '人'}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <view wx:if="{{wishesExtra > 0}}" class="fold-action" bindtap="toggleWishes">
+          <text class="text-primary">{{wishesCollapsed ? '+' + wishesExtra + ' 查看全部' : '收起'}}</text>
+        </view>
+      </block>
+    </view>
+  </block>
+</view>

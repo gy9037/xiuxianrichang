@@ -1,0 +1,244 @@
+/* 行为页样式 */
+
+/* 品质颜色 */
+.quality-fan { color: #94a3b8; }
+.quality-liang { color: #10b981; }
+.quality-shang { color: #3b82f6; }
+.quality-ji { color: #f59e0b; }
+
+/* 快捷入口 */
+.shortcut-last {
+  padding: 16rpx 0;
+  margin-bottom: 16rpx;
+  border-bottom: 1rpx solid #334155;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.shortcut-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  padding: 16rpx 24rpx;
+  background: #252540;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #e2e8f0;
+  min-height: 72rpx;
+}
+
+.shortcut-count {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+
+/* 分类按钮 */
+.category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.category-btn {
+  padding: 20rpx 32rpx;
+  background: #252540;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  color: #e2e8f0;
+  border: 1rpx solid #334155;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.category-btn:active {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #fff;
+}
+
+/* 行为按钮 */
+.subtype-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.subtype-btn {
+  padding: 16rpx 28rpx;
+  background: #252540;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #e2e8f0;
+  border: 1rpx solid #334155;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subtype-btn:active {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  color: #fff;
+}
+
+.subtype-btn-custom {
+  border-style: dashed;
+  color: #8b5cf6;
+}
+
+/* Picker 显示 */
+.picker-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 最近记录 */
+.recent-item {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #334155;
+}
+
+.recent-item:last-child {
+  border-bottom: none;
+}
+
+/* ========== 历史 Tab ========== */
+
+/* 周报统计 */
+.summary-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 16rpx;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 40rpx;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 22rpx;
+  margin-top: 4rpx;
+}
+
+/* 条形图 */
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.bar-label {
+  font-size: 24rpx;
+  color: #e2e8f0;
+  width: 120rpx;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.bar-track {
+  flex: 1;
+  height: 24rpx;
+  background: #252540;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+  border-radius: 12rpx;
+  min-width: 8rpx;
+}
+
+.bar-count {
+  font-size: 22rpx;
+  color: #94a3b8;
+  width: 60rpx;
+  flex-shrink: 0;
+}
+
+/* 品质标签 */
+.quality-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+/* 月历 */
+.calendar-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 24rpx;
+  margin-bottom: 8rpx;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4rpx;
+}
+
+.calendar-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  font-size: 26rpx;
+  color: #e2e8f0;
+  border-radius: 16rpx;
+  position: relative;
+}
+
+.calendar-has-record {
+  background: #252540;
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+.calendar-has-record::after {
+  content: '';
+  position: absolute;
+  bottom: 8rpx;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: #8b5cf6;
+}
+
+.calendar-today {
+  border: 2rpx solid #f59e0b;
+}
+
+.calendar-selected {
+  background: #8b5cf6;
+  color: #fff;
+}
+
+.calendar-selected::after {
+  background: #fff;
+}

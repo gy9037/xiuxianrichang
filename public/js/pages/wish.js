@@ -20,10 +20,12 @@ const WishPage = {
   statusFilter: '全部',
   submittingCreate: false, // V2.5 V25-015 - 创建防重复标志位
   executing: false, // V2.5 V25-018 - 挑战防重复标志位
+  filterExpanded: false, // V2.6 P11 - 筛选面板折叠状态
 
   async load() {
     try {
       this.wishes = await API.get('/wishes');
+      this.filterExpanded = false; // V2.6 P11 - 每次加载重置筛选折叠
       if (!this.showBattle) this.render();
     } catch (e) {
       App.toast(e.message, 'error');
@@ -105,34 +107,49 @@ const WishPage = {
     const completed = filtered.filter(w => w.status === 'completed' || w.status === 'redeemed');
 
     container.innerHTML = `
-      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+      <div class="page-header">
         愿望池
         <button class="btn btn-primary btn-small" style="width:auto;flex-shrink:0" onclick="WishPage.openCreate()">许愿</button>
       </div>
 
-      <div class="card">
-        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-          筛选
-          ${(this.typeFilter !== '全部' || this.statusFilter !== '全部') ? `
-            <button class="btn btn-small btn-secondary" style="font-size:11px"
-              onclick="WishPage.setTypeFilter('全部');WishPage.setStatusFilter('全部')">清除筛选</button>
-          ` : ''}
-        </div>
-        <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:600">类型</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-          ${['全部', '单人', '团队'].map(t => `
-            <button class="btn btn-small ${this.typeFilter === t ? 'btn-primary' : 'btn-secondary'}"
-              onclick="WishPage.setTypeFilter('${t}')">${t}</button>
-          `).join('')}
-        </div>
-        <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:600">状态</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${['全部', '待挑战', '进行中', '已完成', '已兑现'].map(s => `
-            <button class="btn btn-small ${this.statusFilter === s ? 'btn-primary' : 'btn-secondary'}"
-              onclick="WishPage.setStatusFilter('${s}')">${s}</button>
-          `).join('')}
-        </div>
-      </div>
+      ${this.wishes.length > 5 ? `
+        ${this.filterExpanded ? `
+          <div class="card">
+            <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+              筛选
+              <span>
+                ${(this.typeFilter !== '全部' || this.statusFilter !== '全部') ? `
+                  <button class="btn btn-small btn-secondary" style="font-size:11px;margin-right:4px"
+                    onclick="WishPage.setTypeFilter('全部');WishPage.setStatusFilter('全部')">清除筛选</button>
+                ` : ''}
+                <a href="javascript:void(0)" style="font-size:12px;color:var(--text-dim)" onclick="WishPage.toggleFilter()">收起 ▴</a>
+              </span>
+            </div>
+            <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:600">类型</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+              ${['全部', '单人', '团队'].map(t => `
+                <button class="btn btn-small ${this.typeFilter === t ? 'btn-primary' : 'btn-secondary'}"
+                  onclick="WishPage.setTypeFilter('${t}')">${t}</button>
+              `).join('')}
+            </div>
+            <div style="font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:600">状态</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${['全部', '待挑战', '进行中', '已完成', '已兑现'].map(s => `
+                <button class="btn btn-small ${this.statusFilter === s ? 'btn-primary' : 'btn-secondary'}"
+                  onclick="WishPage.setStatusFilter('${s}')">${s}</button>
+              `).join('')}
+            </div>
+          </div>
+        ` : `
+          <div class="card" style="padding:0" onclick="WishPage.toggleFilter()">
+            <div class="filter-collapsed-row">
+              <span class="filter-collapsed-title">筛选</span>
+              <span class="filter-collapsed-summary" style="${(this.typeFilter !== '全部' || this.statusFilter !== '全部') ? 'color:var(--primary)' : ''}">类型:${this.typeFilter} · 状态:${this.statusFilter}</span>
+              <span class="filter-collapsed-indicator">▾</span>
+            </div>
+          </div>
+        `}
+      ` : ''}
 
       ${pending.length === 0 && completed.length === 0 ? `
         <div class="empty-state" style="padding:40px 16px">
@@ -158,15 +175,17 @@ const WishPage = {
             </div>
           ` : ''}
           ${w.type === '团队' ? `
-            <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px">
+            <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px" id="team-progress-${w.id}">
               ${Array.isArray(w.teamProgress) && w.teamProgress.length > 0
                 ? (() => {
                     const visible = w.teamProgress.slice(0, 5);
                     const hidden = w.teamProgress.slice(5);
-                    let html = visible.map(m => `${e(m.name)}：${e(m.status)}`).join(' · ');
+                    let html = visible.map(m => {
+                      const statusColor = m.status === '已通过' ? 'var(--green)' : 'var(--text-dim)';
+                      return `<span>${e(m.name)}：<span style="color:${statusColor}">${e(m.status)}</span></span>`;
+                    }).join(' · ');
                     if (hidden.length > 0) {
-                      html += `<span id="team-hidden-${w.id}" style="display:none"> · ${hidden.map(m => `${e(m.name)}：${e(m.status)}`).join(' · ')}</span>`;
-                      html += ` <a href="javascript:void(0)" onclick="event.stopPropagation();document.getElementById('team-hidden-${w.id}').style.display='inline';this.remove()" style="color:var(--primary)">查看全部 (${w.teamProgress.length}人)</a>`;
+                      html += ` <a href="javascript:void(0)" onclick="event.stopPropagation();WishPage.expandTeam(${w.id})" style="color:var(--primary)">查看全部 (${w.teamProgress.length}人)</a>`;
                     }
                     return html;
                   })()
@@ -221,6 +240,42 @@ const WishPage = {
     this.render();
   },
 
+  // V2.6 P11 - 筛选面板折叠切换
+  toggleFilter() {
+    this.filterExpanded = !this.filterExpanded;
+    this.render();
+  },
+
+  // V2.6 P12 - 展开团队进度为网格
+  expandTeam(wishId) {
+    const wish = this.wishes.find(w => w.id === wishId);
+    const container = document.getElementById(`team-progress-${wishId}`);
+    if (!wish || !container || !Array.isArray(wish.teamProgress)) return;
+    const e = API.escapeHtml.bind(API);
+    container.innerHTML = `
+      <div class="team-grid">
+        ${wish.teamProgress.map(m => {
+          const statusColor = m.status === '已通过' ? 'var(--green)' : 'var(--text-dim)';
+          return `
+            <div class="team-grid-cell">
+              <div class="team-grid-name">${e(m.name)}</div>
+              <div class="team-grid-status" style="color:${statusColor}">${e(m.status)}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <a href="javascript:void(0)" onclick="event.stopPropagation();WishPage.collapseTeam(${wishId})"
+        style="color:var(--primary);font-size:12px;display:inline-block;margin-top:6px">收起</a>
+    `;
+  },
+
+  // V2.6 P12 - 收起团队进度恢复默认
+  collapseTeam(wishId) {
+    void wishId;
+    // 重新渲染整个页面以恢复默认态
+    this.render();
+  },
+
   canChallenge(wish) {
     // V2.5 V25-065 - 未登录保护
     if (!API.user?.id) return false;
@@ -259,7 +314,6 @@ const WishPage = {
         <div class="form-group">
           <label>难度评分（1-10）</label>
           <input type="range" id="wish-difficulty" min="1" max="10" value="3"
-            oninput="document.getElementById('diff-display')?.textContent=this.value"
             style="width:100%;accent-color:var(--primary)">
           <div style="text-align:center;font-size:20px;font-weight:700;color:var(--gold)" id="diff-display">3</div>
           <!-- V2-F09 FB-07 - 难度参考锚点 -->
@@ -288,6 +342,13 @@ const WishPage = {
         <button class="btn btn-primary" onclick="WishPage.submitCreate()">创建愿望</button>
       </div>
     `;
+    // FIX-7 - 难度滑块展示修复
+    const diffInput = document.getElementById('wish-difficulty');
+    if (diffInput) diffInput.oninput = function () {
+      const display = document.getElementById('diff-display');
+      if (display) display.textContent = this.value;
+    };
+
     // V2.5 V25-063 - 实时字数统计
     const nameInput = document.getElementById('wish-name');
     const rewardInput = document.getElementById('wish-reward');

@@ -1,0 +1,252 @@
+<view class="page-container">
+  <!-- Tab 切换 -->
+  <view class="tab-bar">
+    <button class="tab-bar-item {{activeTab === 'report' ? 'active' : ''}}" bindtap="switchTab" data-tab="report">上报</button>
+    <button class="tab-bar-item {{activeTab === 'history' ? 'active' : ''}}" bindtap="switchTab" data-tab="history">历史</button>
+  </view>
+
+  <!-- ==================== 上报 Tab ==================== -->
+  <view wx:if="{{activeTab === 'report'}}">
+
+    <!-- 快捷入口 -->
+    <view class="card" wx:if="{{lastBehavior || shortcuts.length > 0}}">
+      <view class="card-title">快捷打卡</view>
+
+      <!-- 重复上次 -->
+      <view wx:if="{{lastBehavior}}" class="shortcut-last flex-between" bindtap="repeatLast">
+        <view class="flex-row" style="gap:8rpx;flex:1;min-width:0;">
+          <text class="text-dim">上次:</text>
+          <text class="text-bright">{{lastBehavior.sub_type}}</text>
+          <text class="text-dim">({{lastBehavior.category}})</text>
+        </view>
+        <text class="text-primary" style="font-size:26rpx;flex-shrink:0;margin-left:16rpx;">重复 →</text>
+      </view>
+
+      <!-- Top5 快捷 -->
+      <view class="shortcut-grid" wx:if="{{shortcuts.length > 0}}">
+        <button class="shortcut-btn" wx:for="{{shortcuts}}" wx:key="index"
+          bindtap="tapShortcut"
+          data-category="{{item.category}}"
+          data-subtype="{{item.sub_type}}">
+          <text>{{item.sub_type}}</text>
+          <text class="text-dim shortcut-count">{{item.count}}次</text>
+        </button>
+      </view>
+    </view>
+
+    <!-- 步骤1: 选择分类 -->
+    <view wx:if="{{step === 'category'}}">
+      <view class="card">
+        <view class="card-title">选择行为类型</view>
+        <view class="category-grid">
+          <button class="category-btn" wx:for="{{categoryList}}" wx:key="index"
+            bindtap="selectCategory" data-category="{{item}}">
+            {{item}}
+          </button>
+        </view>
+      </view>
+    </view>
+
+    <!-- 步骤2: 选择具体行为 -->
+    <view wx:if="{{step === 'subtype'}}">
+      <view class="card">
+        <view class="flex-between" style="margin-bottom: 16rpx;">
+          <view class="card-title" style="margin-bottom: 0;">{{selectedCategory}}</view>
+          <button class="btn btn-small btn-secondary" bindtap="goBack">返回</button>
+        </view>
+        <view class="subtype-grid">
+          <button class="subtype-btn" wx:for="{{subtypeList}}" wx:key="index"
+            bindtap="selectSubtype" data-subtype="{{item}}">
+            {{item}}
+          </button>
+          <button class="subtype-btn subtype-btn-custom" bindtap="showCustom">+ 自定义</button>
+        </view>
+      </view>
+
+      <!-- 自定义行为输入 -->
+      <view class="card" wx:if="{{showCustomInput}}">
+        <view class="form-group">
+          <view class="form-label">自定义行为名称</view>
+          <input class="form-input" placeholder="输入行为名称" value="{{customName}}" bindinput="onCustomNameInput" />
+        </view>
+        <view class="flex-row" style="gap: 16rpx;">
+          <button class="btn btn-small btn-primary" style="flex:1;" bindtap="submitCustom">添加</button>
+          <button class="btn btn-small btn-secondary" style="flex:1;" bindtap="cancelCustom">取消</button>
+        </view>
+      </view>
+    </view>
+
+    <!-- 步骤3: 表单 (身体健康类) -->
+    <view wx:if="{{step === 'form'}}">
+      <view class="card">
+        <view class="flex-between" style="margin-bottom: 16rpx;">
+          <view class="card-title" style="margin-bottom: 0;">{{selectedCategory}} · {{selectedSubtype}}</view>
+          <button class="btn btn-small btn-secondary" bindtap="goBack">返回</button>
+        </view>
+
+        <!-- 运动强度 (非早起的身体健康行为) -->
+        <view class="form-group" wx:if="{{isHealthCategory && !isWakeup}}">
+          <view class="form-label">运动强度</view>
+          <picker mode="selector" range="{{['低强度','热身','高强度','拉伸']}}" value="{{intensityIndex}}" bindchange="onIntensityChange">
+            <view class="form-input picker-display">
+              <text wx:if="{{intensity}}">{{intensity}}</text>
+              <text wx:else class="text-dim">请选择强度</text>
+            </view>
+          </picker>
+        </view>
+
+        <!-- 早起时间 -->
+        <view class="form-group" wx:if="{{isWakeup}}">
+          <view class="form-label">起床时间</view>
+          <view wx:if="{{!showWakeupInput && wakeupTime}}">
+            <view class="form-input">{{wakeupTime}} (自动记录)</view>
+          </view>
+          <view wx:if="{{showWakeupInput}}">
+            <picker mode="time" value="{{wakeupTime}}" start="04:00" end="12:00" bindchange="onWakeupTimeChange">
+              <view class="form-input picker-display">
+                <text wx:if="{{wakeupTime}}">{{wakeupTime}}</text>
+                <text wx:else class="text-dim">请选择起床时间</text>
+              </view>
+            </picker>
+            <view class="text-dim" style="font-size: 22rpx; margin-top: 8rpx;">当前不在 5:30-8:30 窗口内，请手动选择</view>
+          </view>
+        </view>
+
+        <!-- 备注 -->
+        <view class="form-group">
+          <view class="form-label">备注 (可选)</view>
+          <textarea class="form-textarea" placeholder="添加备注..." value="{{description}}" bindinput="onDescriptionInput" maxlength="200" />
+        </view>
+
+        <!-- 提交 -->
+        <button class="btn btn-primary" style="width: 100%;" bindtap="submitBehavior" disabled="{{submitting}}">
+          {{submitting ? '提交中...' : '提交打卡'}}
+        </button>
+      </view>
+    </view>
+
+    <!-- 最近记录 -->
+    <view class="card" wx:if="{{recentList.length > 0}}">
+      <view class="flex-between" bindtap="toggleRecent">
+        <view class="card-title" style="margin-bottom: 0;">最近记录</view>
+        <text class="text-dim">{{showRecent ? '收起' : '展开'}}</text>
+      </view>
+      <view wx:if="{{showRecent}}" style="margin-top: 16rpx;">
+        <view class="recent-item" wx:for="{{recentList}}" wx:key="index">
+          <view class="flex-between">
+            <view>
+              <text class="text-bright">{{item.sub_type}}</text>
+              <text class="text-dim" style="margin-left: 12rpx;">{{item.category}}</text>
+            </view>
+            <text class="text-dim" style="font-size: 22rpx;">{{item.completedAtShort}}</text>
+          </view>
+          <view wx:if="{{item.item_name}}" style="margin-top: 4rpx;">
+            <text class="text-dim">获得: </text>
+            <text class="{{item.qualityClass}}">{{item.item_name}} ({{item.quality}})</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ==================== 历史 Tab ==================== -->
+  <view wx:if="{{activeTab === 'history'}}">
+
+    <!-- 本周修炼报告 -->
+    <view class="card" wx:if="{{weeklySummary}}">
+      <view class="card-title">本周修炼报告</view>
+
+      <view class="summary-stats">
+        <view class="stat-item">
+          <view class="stat-value text-gold">{{weeklySummary.behavior_count}}</view>
+          <view class="stat-label text-dim">行为次数</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value text-green">{{weeklySummary.item_count}}</view>
+          <view class="stat-label text-dim">道具数</view>
+        </view>
+        <view class="stat-item">
+          <view class="stat-value text-primary">{{weeklySummary.active_days}}</view>
+          <view class="stat-label text-dim">活跃天数</view>
+        </view>
+      </view>
+
+      <!-- 类别分布 -->
+      <view wx:if="{{weeklySummary.category_distribution.length > 0}}" style="margin-top: 24rpx;">
+        <view class="text-dim" style="font-size: 24rpx; margin-bottom: 12rpx;">类别分布</view>
+        <view class="bar-chart">
+          <view class="bar-row" wx:for="{{weeklySummary.category_distribution}}" wx:key="category">
+            <text class="bar-label">{{item.category}}</text>
+            <view class="bar-track">
+              <view class="bar-fill" style="width: {{item.barWidth}}%;"></view>
+            </view>
+            <text class="bar-count">{{item.count}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 品质分布 -->
+      <view wx:if="{{weeklySummary.qualityList.length > 0}}" style="margin-top: 20rpx;">
+        <view class="text-dim" style="font-size: 24rpx; margin-bottom: 12rpx;">品质分布</view>
+        <view class="quality-tags">
+          <view class="tag {{item.qualityClass}}" wx:for="{{weeklySummary.qualityList}}" wx:key="name">
+            {{item.name}} ×{{item.count}}
+          </view>
+        </view>
+      </view>
+
+      <!-- 连续修炼 -->
+      <view wx:if="{{weeklySummary.streak > 0}}" style="margin-top: 20rpx;">
+        <text class="text-gold">连续修炼 {{weeklySummary.streak}} 天</text>
+        <text class="text-dim" wx:if="{{weeklySummary.streak_note}}"> · {{weeklySummary.streak_note}}</text>
+      </view>
+    </view>
+
+    <!-- 月历 -->
+    <view class="card">
+      <view class="flex-between" style="margin-bottom: 20rpx;">
+        <button class="btn btn-small btn-secondary" bindtap="prevMonth">上月</button>
+        <text class="text-bright" style="font-size: 30rpx; font-weight: 600;">{{calendarMonthLabel}}</text>
+        <button class="btn btn-small btn-secondary" bindtap="nextMonth">下月</button>
+      </view>
+
+      <!-- 星期头 -->
+      <view class="calendar-header">
+        <view class="calendar-cell text-dim">日</view>
+        <view class="calendar-cell text-dim">一</view>
+        <view class="calendar-cell text-dim">二</view>
+        <view class="calendar-cell text-dim">三</view>
+        <view class="calendar-cell text-dim">四</view>
+        <view class="calendar-cell text-dim">五</view>
+        <view class="calendar-cell text-dim">六</view>
+      </view>
+
+      <!-- 日期网格 -->
+      <view class="calendar-grid">
+        <view class="calendar-cell {{item.hasRecord ? 'calendar-has-record' : ''}} {{item.isToday ? 'calendar-today' : ''}} {{item.dateStr === selectedDate ? 'calendar-selected' : ''}}"
+          wx:for="{{calendarDays}}" wx:key="index"
+          bindtap="tapCalendarDay" data-date="{{item.dateStr}}">
+          <text wx:if="{{item.day}}">{{item.day}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 选中日期的记录 -->
+    <view class="card" wx:if="{{selectedDate}}">
+      <view class="card-title">{{selectedDate}}</view>
+      <view wx:if="{{selectedDateRecords.length === 0}}" class="empty-state">当天无记录</view>
+      <view wx:else>
+        <view class="recent-item" wx:for="{{selectedDateRecords}}" wx:key="index">
+          <view class="flex-between">
+            <text class="text-bright">{{item.sub_type}}</text>
+            <text class="text-dim" style="font-size: 22rpx;">{{item.completedAtShort}}</text>
+          </view>
+          <view wx:if="{{item.item_name}}" style="margin-top: 4rpx;">
+            <text class="text-dim">获得: </text>
+            <text class="{{item.qualityClass}}">{{item.item_name}} ({{item.quality}})</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -15,6 +15,9 @@ fi
 sqlite3 "$DB_PATH" ".backup '$BACKUP_FILE'"
 echo "Backup created: $BACKUP_FILE"
 
+# 上传到 R2（如果已配置）
+node /app/scripts/upload-backup.js "$BACKUP_FILE" 2>&1 || true
+
 # 清理 7 天前的备份
 find "$BACKUP_DIR" -name "data_*.db" -mtime +7 -delete
 echo "Old backups cleaned"

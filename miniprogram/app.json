@@ -1,0 +1,47 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/behavior/behavior",
+    "pages/inventory/inventory",
+    "pages/wish/wish",
+    "pages/family/family",
+    "pages/login/login"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#0f0f1a",
+    "navigationBarTitleText": "修仙日常",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0f0f1a",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#94a3b8",
+    "selectedColor": "#8b5cf6",
+    "backgroundColor": "#1a1a2e",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "角色"
+      },
+      {
+        "pagePath": "pages/behavior/behavior",
+        "text": "行为"
+      },
+      {
+        "pagePath": "pages/inventory/inventory",
+        "text": "背包"
+      },
+      {
+        "pagePath": "pages/wish/wish",
+        "text": "愿望"
+      },
+      {
+        "pagePath": "pages/family/family",
+        "text": "家庭"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
