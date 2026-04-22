@@ -2,7 +2,15 @@ const api = require('../../utils/api');
 
 const QUALITY_ORDER = ['极品', '上品', '良品', '凡品'];
 const QUALITY_CLASS_MAP = { '凡品': 'quality-fan', '良品': 'quality-liang', '上品': 'quality-shang', '极品': 'quality-ji' };
+const QUALITY_KEY_MAP = { '凡品': 'fan', '良品': 'liang', '上品': 'shang', '极品': 'ji' };
 const SYNTH_THRESHOLD = 10;
+const ATTR_NAMES = {
+  physique: '体魄',
+  comprehension: '悟性',
+  willpower: '心性',
+  dexterity: '灵巧',
+  perception: '神识',
+};
 
 Page({
   data: {
@@ -23,7 +31,12 @@ Page({
     canSynth: false,
     synthGain: 0,
     synthWaste: 0,
+    synthProgressPct: 0,
     synthesizing: false,
+
+    // 炼化成功弹窗
+    showSynthModal: false,
+    synthResult: null,
 
     // 奖励数据
     pendingRewards: [],
@@ -40,6 +53,11 @@ Page({
     if (!api.isLoggedIn()) {
       wx.reLaunch({ url: '/pages/login/login' });
       return;
+    }
+    const app = getApp();
+    if (app.globalData.inventoryTab) {
+      this.setData({ activeSection: app.globalData.inventoryTab });
+      app.globalData.inventoryTab = null;
     }
     this.loadData();
   },
@@ -127,6 +145,7 @@ Page({
         canSynth: false,
         synthGain: 0,
         synthWaste: 0,
+        synthProgressPct: 0,
       });
       return;
     }
@@ -137,6 +156,7 @@ Page({
       name: item.name,
       quality: item.quality,
       qualityClass: QUALITY_CLASS_MAP[item.quality] || 'quality-fan',
+      qualityKey: QUALITY_KEY_MAP[item.quality] || 'fan',
       attribute_type: item.attribute_type,
       temp_value: item.temp_value,
       checked: false,
@@ -183,6 +203,8 @@ Page({
     const gain = Math.floor(total / SYNTH_THRESHOLD);
     const waste = total % SYNTH_THRESHOLD;
     const canSynth = total >= SYNTH_THRESHOLD;
+    const synthProgressPct = Math.min(Math.round(((total % SYNTH_THRESHOLD) / SYNTH_THRESHOLD) * 100), 100);
+    const finalProgressPct = total >= SYNTH_THRESHOLD ? 100 : synthProgressPct;
 
     this.setData({
       selectedCount: count,
@@ -190,6 +212,7 @@ Page({
       canSynth: canSynth,
       synthGain: gain,
       synthWaste: waste,
+      synthProgressPct: finalProgressPct,
     });
   },
 
@@ -239,10 +262,15 @@ Page({
     this.setData({ synthesizing: true });
 
     api.post('/items/synthesize', { item_ids: ids }).then(res => {
-      const msg = res.attribute + ' +' + res.gain + '（当前 ' + res.newValue + '/' + res.cap + '）';
-      wx.showToast({ title: msg, icon: 'none', duration: 2500 });
-      this.setData({ synthesizing: false });
-      this.loadItems();
+      this.setData({
+        synthesizing: false,
+        showSynthModal: true,
+        synthResult: {
+          gain: res.gain || 0,
+          attrName: res.attribute || ATTR_NAMES[res.attribute_type] || '',
+          newValue: res.newValue || 0,
+        },
+      });
     }).catch(err => {
       wx.showToast({ title: err.message || '合成失败', icon: 'none' });
       this.setData({ synthesizing: false });
@@ -295,6 +323,11 @@ Page({
 
   onCloseRules() {
     this.setData({ showRules: false });
+  },
+
+  closeSynthModal() {
+    this.setData({ showSynthModal: false, synthResult: null });
+    this.loadData();
   },
 
   // ========== 导航 ==========

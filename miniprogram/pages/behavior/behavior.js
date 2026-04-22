@@ -2,6 +2,13 @@ const api = require('../../utils/api');
 
 const INTENSITY_OPTIONS = ['低强度', '热身', '高强度', '拉伸'];
 const QUALITY_CLASS_MAP = { '凡品': 'quality-fan', '良品': 'quality-liang', '上品': 'quality-shang', '极品': 'quality-ji' };
+const ATTR_NAMES = {
+  physique: '体魄',
+  comprehension: '悟性',
+  willpower: '心性',
+  dexterity: '灵巧',
+  perception: '神识',
+};
 
 Page({
   data: {
@@ -25,10 +32,23 @@ Page({
     // 快捷入口
     shortcuts: [],
     lastBehavior: null,
+    showPinMenu: false,
+    pinMenuTarget: null,
+    pinnedBehaviors: [],
 
     // 最近记录
     recentList: [],
     showRecent: false,
+
+    // 打卡奖励弹窗
+    showRewardModal: false,
+    rewardData: null,
+
+    // 月度目标
+    showGoalPanel: false,
+    monthlyGoals: [],
+    newGoalSubType: '',
+    newGoalCount: '',
 
     // 自定义行为
     showCustomInput: false,
@@ -54,7 +74,13 @@ Page({
       wx.reLaunch({ url: '/pages/login/login' });
       return;
     }
+    const app = getApp();
+    if (app.globalData.openGoalManage) {
+      this.setData({ activeTab: 'report', showGoalPanel: true });
+      app.globalData.openGoalManage = null;
+    }
     this.loadReportData();
+    this.loadMonthlyGoals();
   },
 
   // ========== Tab 切换 ==========
@@ -80,6 +106,7 @@ Page({
     this.loadShortcuts();
     this.loadLastBehavior();
     this.loadRecentList();
+    if (this.data.showGoalPanel) this.loadMonthlyGoals();
   },
 
   loadCategories() {
@@ -91,7 +118,12 @@ Page({
 
   loadShortcuts() {
     api.get('/behavior/shortcuts').then(data => {
-      this.setData({ shortcuts: data || [] });
+      const shortcuts = data || [];
+      const pinnedBehaviors = shortcuts.filter(s => s.pinned).map(s => ({
+        category: s.category,
+        sub_type: s.sub_type,
+      }));
+      this.setData({ shortcuts, pinnedBehaviors });
     }).catch(() => {});
   },
 
@@ -160,6 +192,60 @@ Page({
     } else {
       this.doSubmit(category, subtype, '', '', '');
     }
+  },
+
+  onShortcutLongPress(e) {
+    const { category, subtype, index, pinned } = e.currentTarget.dataset;
+    const isPinned = pinned === true || pinned === 'true' || pinned === 1 || pinned === '1';
+    this.setData({
+      showPinMenu: true,
+      pinMenuTarget: {
+        category,
+        sub_type: subtype,
+        index,
+        pinned: isPinned,
+      },
+    });
+  },
+
+  closePinMenu() {
+    this.setData({ showPinMenu: false, pinMenuTarget: null });
+  },
+
+  pinBehavior() {
+    const target = this.data.pinMenuTarget;
+    if (!target) return;
+
+    const current = [...this.data.pinnedBehaviors];
+    if (current.length >= 2) {
+      wx.showToast({ title: '最多置顶 2 个，请先取消一个', icon: 'none' });
+      this.closePinMenu();
+      return;
+    }
+
+    current.push({ category: target.category, sub_type: target.sub_type });
+    this.updatePinnedBehaviors(current);
+  },
+
+  unpinBehavior() {
+    const target = this.data.pinMenuTarget;
+    if (!target) return;
+    const current = this.data.pinnedBehaviors.filter(
+      p => !(p.category === target.category && p.sub_type === target.sub_type)
+    );
+    this.updatePinnedBehaviors(current);
+  },
+
+  updatePinnedBehaviors(pinnedBehaviors) {
+    api.patch('/character/pin-behavior', { pinnedBehaviors }).then(() => {
+      this.setData({ pinnedBehaviors });
+      this.closePinMenu();
+      this.loadShortcuts();
+      wx.showToast({ title: '已更新', icon: 'success', duration: 1000 });
+    }).catch(err => {
+      wx.showToast({ title: err.message || '操作失败', icon: 'none' });
+      this.closePinMenu();
+    });
   },
 
   // ========== 分类选择 ==========
@@ -283,16 +369,47 @@ Page({
     if (wakeup_time) body.wakeup_time = wakeup_time;
 
     api.post('/behavior', body).then(res => {
-      this.setData({ submitting: false });
-      const item = res.item;
-      const status = res.cultivationStatus;
-      let msg = '打卡成功';
-      if (item) {
-        msg = '获得: ' + item.name + '(' + item.quality + ')';
-      }
-      wx.showToast({ title: msg, icon: 'success', duration: 2000 });
+      const attrTempTotal = Math.round((res.attrTempTotal || 0) * 10) / 10;
+      const canSynth = attrTempTotal >= 10;
+      const remaining = canSynth ? 0 : Math.round((10 - attrTempTotal) * 10) / 10;
+      const progressPct = Math.min(Math.round(((attrTempTotal % 10) / 10) * 100), 100);
+      const rewardData = {
+        itemName: res.item?.name || '',
+        quality: res.item?.quality || '凡品',
+        qualityClass: QUALITY_CLASS_MAP[res.item?.quality] || 'quality-fan',
+        tempValue: res.item?.temp_value || 0,
+        attrName: ATTR_NAMES[res.item?.attribute_type] || '',
+        description: res.item?.description || '',
+        attrTempTotal,
+        canSynth,
+        remaining,
+        progressPct: canSynth ? 100 : progressPct,
+        showCheckin: !!(res.checkinResult && !res.checkinResult.alreadyCheckedIn),
+        checkinReward: res.checkinResult ? res.checkinResult.reward : 0,
+        checkinStreak: res.checkinResult ? res.checkinResult.streak : 0,
+      };
+
+      this.setData({
+        submitting: false,
+        showRewardModal: true,
+        rewardData,
+      });
       this.resetForm();
       this.loadReportData();
+      this.loadMonthlyGoals().then(goals => {
+        const hit = goals.find(g => (
+          g.completed &&
+          g.subType === sub_type &&
+          g.currentCount === g.targetCount
+        ));
+        if (hit) {
+          wx.showToast({
+            title: `「${hit.subType}」本月目标达成！`,
+            icon: 'none',
+            duration: 2500,
+          });
+        }
+      });
     }).catch(err => {
       this.setData({ submitting: false });
       wx.showToast({ title: err.message || '提交失败', icon: 'none' });
@@ -329,6 +446,82 @@ Page({
   // ========== 最近记录 ==========
   toggleRecent() {
     this.setData({ showRecent: !this.data.showRecent });
+  },
+
+  closeRewardModal() {
+    this.setData({ showRewardModal: false, rewardData: null });
+  },
+
+  goToInventoryFromReward() {
+    this.setData({ showRewardModal: false, rewardData: null });
+    wx.switchTab({ url: '/pages/inventory/inventory' });
+  },
+
+  loadMonthlyGoals() {
+    return api.get('/behavior-goal/current').then(data => {
+      const goals = (data || []).map(g => ({
+        ...g,
+        progressPct: Math.min(Math.round((g.currentCount / g.targetCount) * 100), 100),
+      }));
+      this.setData({ monthlyGoals: goals });
+      return goals;
+    }).catch(() => {
+      this.setData({ monthlyGoals: [] });
+      return [];
+    });
+  },
+
+  toggleGoalPanel() {
+    const show = !this.data.showGoalPanel;
+    this.setData({ showGoalPanel: show });
+    if (show) this.loadMonthlyGoals();
+  },
+
+  onGoalSubTypeInput(e) {
+    this.setData({ newGoalSubType: e.detail.value });
+  },
+
+  onGoalCountInput(e) {
+    this.setData({ newGoalCount: e.detail.value });
+  },
+
+  addGoal() {
+    const subType = this.data.newGoalSubType.trim();
+    const count = parseInt(this.data.newGoalCount, 10);
+
+    if (!subType) {
+      wx.showToast({ title: '请输入行为名称', icon: 'none' });
+      return;
+    }
+    if (!count || count < 1) {
+      wx.showToast({ title: '请输入有效的目标次数', icon: 'none' });
+      return;
+    }
+
+    api.post('/behavior-goal', { sub_type: subType, target_count: count }).then(() => {
+      wx.showToast({ title: '目标已添加', icon: 'success', duration: 1000 });
+      this.setData({ newGoalSubType: '', newGoalCount: '' });
+      this.loadMonthlyGoals();
+    }).catch(err => {
+      wx.showToast({ title: err.message || '添加失败', icon: 'none' });
+    });
+  },
+
+  deleteGoal(e) {
+    const id = e.currentTarget.dataset.id;
+    wx.showModal({
+      title: '确认删除',
+      content: '确定要删除这个目标吗？',
+      success: (res) => {
+        if (!res.confirm) return;
+        api.delete(`/behavior-goal/${id}`).then(() => {
+          wx.showToast({ title: '已删除', icon: 'success', duration: 1000 });
+          this.loadMonthlyGoals();
+        }).catch(err => {
+          wx.showToast({ title: err.message || '删除失败', icon: 'none' });
+        });
+      },
+    });
   },
 
   // ========== 历史 Tab ==========

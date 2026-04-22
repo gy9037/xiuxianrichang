@@ -1,5 +1,6 @@
 // REQ-B2, REQ-B3: 道具生成
 const itemNames = require('../data/items.json');
+const itemDescriptions = require('../data/item-descriptions.json');
 
 const QUALITY_VALUES = {
   '凡品': 1,
@@ -45,8 +46,9 @@ function generateItem(category, quality) {
   const names = itemNames[category] || itemNames['默认'];
   const name = names[Math.floor(Math.random() * names.length)];
   const tempValue = QUALITY_VALUES[quality];
+  const description = itemDescriptions[name] || '';
 
-  return { name, quality, attribute_type: attrType, temp_value: tempValue };
+  return { name, quality, attribute_type: attrType, temp_value: tempValue, description };
 }
 
 module.exports = { determineQuality, generateItem, QUALITY_VALUES, CATEGORY_TO_ATTR };

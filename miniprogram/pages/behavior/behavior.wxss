@@ -6,6 +6,118 @@
 .quality-shang { color: #3b82f6; }
 .quality-ji { color: #f59e0b; }
 
+/* 打卡成功弹窗 */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: #1a1a2e;
+  border-radius: 16rpx;
+  width: 600rpx;
+  padding: 40rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.5);
+}
+
+.reward-header {
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.reward-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.reward-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+
+.reward-item-name {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.reward-quality-tag {
+  font-size: 22rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 6rpx;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.reward-attr-row {
+  text-align: center;
+  font-size: 26rpx;
+  margin-bottom: 8rpx;
+}
+
+.reward-desc {
+  text-align: center;
+  font-size: 22rpx;
+  margin-bottom: 24rpx;
+  padding: 0 16rpx;
+}
+
+.reward-progress {
+  margin-bottom: 28rpx;
+}
+
+.reward-progress-bar-bg {
+  height: 16rpx;
+  background: #252540;
+  border-radius: 8rpx;
+  overflow: hidden;
+  margin-bottom: 8rpx;
+}
+
+.reward-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+  border-radius: 8rpx;
+  transition: width 0.3s;
+}
+
+.reward-progress-text {
+  display: flex;
+  justify-content: center;
+  font-size: 24rpx;
+}
+
+.reward-actions {
+  margin-bottom: 16rpx;
+}
+
+.reward-actions .btn {
+  width: 100%;
+}
+
+.btn-secondary {
+  background: #252540;
+  color: #e2e8f0;
+  border: 1rpx solid #334155;
+}
+
+.reward-checkin {
+  text-align: center;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #334155;
+  font-size: 26rpx;
+}
+
 /* 快捷入口 */
 .shortcut-last {
   padding: 16rpx 0;
@@ -21,6 +133,7 @@
 }
 
 .shortcut-btn {
+  position: relative;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -29,14 +142,65 @@
   padding: 16rpx 24rpx;
   background: #252540;
   border-radius: 16rpx;
+  border: 1rpx solid #334155;
   font-size: 26rpx;
   color: #e2e8f0;
   min-height: 72rpx;
 }
 
+.shortcut-pinned {
+  border-color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.08) !important;
+}
+
+.pin-badge {
+  position: absolute;
+  top: -4rpx;
+  right: -4rpx;
+  font-size: 20rpx;
+  color: #f59e0b;
+}
+
 .shortcut-count {
   font-size: 22rpx;
   color: #94a3b8;
+}
+
+/* 置顶操作菜单 */
+.pin-menu {
+  background: #1a1a2e;
+  border-radius: 16rpx;
+  width: 500rpx;
+  padding: 32rpx;
+  border: 1rpx solid #334155;
+}
+
+.pin-menu-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f8fafc;
+  text-align: center;
+  margin-bottom: 24rpx;
+}
+
+.pin-menu-btn {
+  width: 100%;
+  padding: 20rpx;
+  font-size: 28rpx;
+  color: #e2e8f0;
+  background: #252540;
+  border-radius: 12rpx;
+  margin-bottom: 12rpx;
+  border: none;
+}
+
+.pin-menu-btn:active {
+  opacity: 0.7;
+}
+
+.pin-menu-cancel {
+  color: #94a3b8;
+  background: transparent;
 }
 
 /* 分类按钮 */
@@ -111,6 +275,42 @@
 
 .recent-item:last-child {
   border-bottom: none;
+}
+
+/* 月度目标管理 */
+.goal-manage-row {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #334155;
+}
+
+.goal-manage-row:last-child {
+  border-bottom: none;
+}
+
+.goal-progress-bg {
+  height: 12rpx;
+  background: #252540;
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+  border-radius: 6rpx;
+}
+
+.goal-complete {
+  background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.goal-add-form .form-input {
+  background: #252540;
+  border: 1rpx solid #334155;
+  border-radius: 8rpx;
+  padding: 12rpx 16rpx;
+  font-size: 26rpx;
+  color: #e2e8f0;
 }
 
 /* ========== 历史 Tab ========== */

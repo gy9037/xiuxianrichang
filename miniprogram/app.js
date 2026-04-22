@@ -10,5 +10,7 @@ App({
 
   globalData: {
     version: '1.2.6',
+    inventoryTab: null,
+    openGoalManage: null,
   },
 });

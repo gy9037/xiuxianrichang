@@ -4,6 +4,7 @@ const { authMiddleware } = require('../middleware/auth');
 const { checkPromotion, getTotalAttrs, getRealmByName } = require('../services/realm');
 const { calculateDecay, getDecayStatus } = require('../services/decay');
 const { getCultivationStatus } = require('../services/cultivation');
+const { getCheckinStatus } = require('../services/checkinService');
 const pkg = require('../../package.json');
 
 const router = express.Router();
@@ -29,6 +30,12 @@ function parseTags(rawTags) {
   } catch {
     return [];
   }
+}
+
+function getCurrentPeriodKey() {
+  const now = new Date();
+  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return `${utc8.getUTCFullYear()}-${String(utc8.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function getRecentTrend(userId) {
@@ -101,7 +108,7 @@ function normalizeUserStatus(status) {
 // GET /api/character — get current user's character
 router.get('/', (req, res) => {
   const character = db.prepare(
-    `SELECT c.*, u.tags, u.avatar
+    `SELECT c.*, u.tags, u.avatar, u.spirit_stones
      FROM characters c JOIN users u ON c.user_id = u.id
      WHERE c.user_id = ?`
   ).get(req.user.id);
@@ -129,6 +136,39 @@ router.get('/', (req, res) => {
   const decayStatus = getDecayStatus(character, new Date(), userStatus, cultivationStatus.bufferAdjust);
   const tags = parseTags(character.tags);
   const trend = getRecentTrend(req.user.id);
+  const checkinStatus = getCheckinStatus(req.user.id);
+  const spiritStones = Number(character.spirit_stones || 0);
+  let pinnedBehaviors = [];
+  try {
+    pinnedBehaviors = JSON.parse(character.pinned_behaviors || '[]');
+  } catch (e) {
+    pinnedBehaviors = [];
+  }
+
+  const periodKey = getCurrentPeriodKey();
+  const goals = db.prepare(
+    'SELECT * FROM behavior_goals WHERE user_id = ? AND period_key = ?'
+  ).all(req.user.id, periodKey);
+  const monthStart = `${periodKey}-01`;
+  const goalCounts = db.prepare(`
+    SELECT sub_type, COUNT(*) AS count
+    FROM behaviors
+    WHERE user_id = ?
+      AND date(completed_at, 'localtime') >= ?
+      AND strftime('%Y-%m', completed_at, 'localtime') = ?
+    GROUP BY sub_type
+  `).all(req.user.id, monthStart, periodKey);
+  const goalCountMap = {};
+  for (const row of goalCounts) {
+    goalCountMap[row.sub_type] = row.count;
+  }
+  const behaviorGoals = goals.map(g => ({
+    id: g.id,
+    subType: g.sub_type,
+    targetCount: g.target_count,
+    currentCount: goalCountMap[g.sub_type] || 0,
+    completed: (goalCountMap[g.sub_type] || 0) >= g.target_count,
+  }));
 
   res.json({
     character: {
@@ -149,6 +189,10 @@ router.get('/', (req, res) => {
     promotion,
     decayStatus,
     cultivationStatus,
+    spiritStones,
+    checkinStatus,
+    pinnedBehaviors,
+    behaviorGoals,
     appVersion: pkg.version,
   });
 });
@@ -195,6 +239,28 @@ router.post('/status', (req, res) => {
   }
   db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, req.user.id);
   res.json({ success: true, status });
+});
+
+// PATCH /api/character/pin-behavior — 更新置顶行为
+router.patch('/pin-behavior', (req, res) => {
+  const { pinnedBehaviors } = req.body;
+
+  if (!Array.isArray(pinnedBehaviors)) {
+    return res.status(400).json({ error: 'pinnedBehaviors 必须是数组' });
+  }
+  if (pinnedBehaviors.length > 2) {
+    return res.status(400).json({ error: '最多置顶 2 个行为' });
+  }
+  for (const item of pinnedBehaviors) {
+    if (!item.category || !item.sub_type) {
+      return res.status(400).json({ error: '每项需包含 category 和 sub_type' });
+    }
+  }
+
+  db.prepare('UPDATE characters SET pinned_behaviors = ? WHERE user_id = ?')
+    .run(JSON.stringify(pinnedBehaviors), req.user.id);
+
+  res.json({ pinnedBehaviors });
 });
 
 router.get('/cultivation-status', (req, res) => {

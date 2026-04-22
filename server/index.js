@@ -20,6 +20,8 @@ app.use('/api/battle', require('./routes/boss'));
 app.use('/api/rewards', require('./routes/reward'));
 app.use('/api/family', require('./routes/family'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/checkin', require('./routes/checkin'));
+app.use('/api/behavior-goal', require('./routes/behaviorGoal'));
 
 // SPA fallback
 app.get('*', (req, res) => {

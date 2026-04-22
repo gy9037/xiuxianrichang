@@ -1,20 +1,36 @@
 <view class="page-container" wx:if="{{!loading}}">
 
+  <!-- HUD 信息栏 -->
+  <view class="hud-bar" style="padding-top:{{statusBarHeight}}px">
+    <view class="hud-content">
+      <view class="hud-left">
+        <text class="hud-name">{{character ? character.name : ''}}</text>
+        <view class="realm-badge-small">{{character ? character.realm_stage : ''}}</view>
+      </view>
+      <view class="hud-right">
+        <view class="hud-stones" bindtap="showCheckin">
+          <text class="hud-stones-icon">💎</text>
+          <text class="hud-stones-num">{{spiritStones}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <!-- Hero 区域 -->
   <view class="card" wx:if="{{character}}">
-    <!-- 第一行：角色名 + 状态 -->
+    <!-- 第一行：修炼状态 + 环境状态 -->
     <view class="flex-between">
-      <text style="font-size:40rpx;font-weight:700;color:#f8fafc">{{character.name}}</text>
+      <view class="flex-row" style="gap:8rpx;min-width:0;flex:1">
+        <text wx:if="{{cultivationStatus}}" style="font-size:26rpx;font-weight:600;color:{{cvLevelColor}};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{cvLevelPrefix}}{{cultivationStatus.level}} · {{cultivationStatus.activeDays}}/7天 · {{cultivationStatus.activeCategories}}类</text>
+        <text wx:if="{{cultivationStatus}}" bindtap="showCultivationHelp" class="text-dim" style="font-size:24rpx;padding:4rpx 8rpx">?</text>
+      </view>
       <view bindtap="showStatusPicker" class="env-badge" style="background:{{envBadgeColor}}">
         {{character.status || '居家'}} ▾
       </view>
     </view>
 
-    <!-- 第二行：境界 + 修炼状态 + 加成/缓冲，同行 wrap -->
+    <!-- 第二行：加成/缓冲 -->
     <view style="display:flex;flex-wrap:wrap;gap:12rpx;margin-top:12rpx;align-items:center">
-      <view class="realm-badge">{{character.realm_stage}}</view>
-      <text wx:if="{{cultivationStatus}}" style="font-size:26rpx;font-weight:600;color:{{cvLevelColor}}">{{cvLevelPrefix}}{{cultivationStatus.level}} · {{cultivationStatus.activeDays}}/7天 · {{cultivationStatus.activeCategories}}类</text>
-      <text wx:if="{{cultivationStatus}}" bindtap="showCultivationHelp" class="text-dim" style="font-size:24rpx;padding:4rpx 8rpx">?</text>
       <text wx:if="{{showDropBonus}}" class="text-gold" style="font-size:24rpx">良品+{{dropBonusText}}%</text>
       <text wx:if="{{showBufferAdjust}}" class="text-red" style="font-size:24rpx">缓冲{{cultivationStatus.bufferAdjust}}天</text>
     </view>
@@ -79,7 +95,7 @@
     </view>
 
     <view wx:elif="{{recommendations.type === 'weak'}}">
-      <view wx:for="{{recommendations.items}}" wx:key="category" 
+      <view wx:for="{{recommendations.items}}" wx:key="category"
         class="recommend-action {{index > 0 ? 'recommend-action-border' : ''}}"
         bindtap="goToBehavior" data-category="{{item.category}}">
         <view style="flex:1;min-width:0;">
@@ -88,6 +104,25 @@
           <text style="font-size:24rpx;color:#94a3b8;margin-left:8rpx;">上报「{{item.category}}」</text>
         </view>
         <text class="text-primary" style="font-size:26rpx;flex-shrink:0;">→</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 月度目标 -->
+  <view class="card" wx:if="{{behaviorGoals && behaviorGoals.length > 0}}">
+    <view class="flex-between" style="margin-bottom:16rpx">
+      <view class="card-title" style="margin-bottom:0">本月目标</view>
+      <text class="text-primary" style="font-size:24rpx" bindtap="goToGoalManage">管理 →</text>
+    </view>
+    <view wx:for="{{behaviorGoals}}" wx:key="id" class="goal-row">
+      <view class="flex-between" style="margin-bottom:8rpx">
+        <text class="text-bright" style="font-size:26rpx">{{item.subType}}</text>
+        <text class="{{item.completed ? 'text-green' : 'text-dim'}}" style="font-size:24rpx">
+          {{item.currentCount}}/{{item.targetCount}} 次
+        </text>
+      </view>
+      <view class="goal-progress-bg">
+        <view class="goal-progress-fill {{item.completed ? 'goal-complete' : ''}}" style="width:{{item.progressPct}}%"></view>
       </view>
     </view>
   </view>
@@ -105,7 +140,7 @@
     </view>
 
     <view wx:if="{{achievementsExpanded}}" style="margin-top:16rpx">
-      <view wx:for="{{achievements}}" wx:key="id" 
+      <view wx:for="{{achievements}}" wx:key="id"
         class="{{item.achClass}}"
         style="opacity:{{item.achOpacity}}">
         <view class="flex-between">
@@ -123,6 +158,63 @@
     <text class="text-dim" style="font-size:20rpx">v{{appVersion}}</text>
   </view>
 
+  <!-- 签到浮动按钮 -->
+  <view class="fab-container">
+    <view class="fab-btn {{checkinStatus.checkedInToday ? 'fab-btn-done' : 'fab-btn-active'}}" bindtap="showCheckin">
+      <text class="fab-icon">{{checkinStatus.checkedInToday ? '✓' : '📅'}}</text>
+      <text class="fab-label">签到</text>
+      <view wx:if="{{checkinStatus && !checkinStatus.checkedInToday}}" class="fab-dot"></view>
+    </view>
+  </view>
+
+</view>
+
+<!-- 签到弹窗 -->
+<view wx:if="{{showCheckinModal}}" class="modal-mask" bindtap="hideCheckin">
+  <view class="modal-content checkin-modal" catchtap="">
+    <view class="checkin-header">
+      <text class="checkin-title">修炼签到</text>
+      <text class="checkin-close" bindtap="hideCheckin">✕</text>
+    </view>
+
+    <view class="checkin-streak">
+      <text class="checkin-streak-num">{{checkinDisplay.streak}}</text>
+      <text class="checkin-streak-label">连续签到</text>
+    </view>
+
+    <view class="checkin-reward">
+      <text wx:if="{{checkinDisplay.checkedIn}}" class="checkin-reward-text">
+        今日已签到，获得 💎×{{checkinDisplay.reward}}
+      </text>
+      <text wx:else class="checkin-reward-text">
+        今日签到可获得 💎×{{checkinDisplay.nextReward}}
+      </text>
+    </view>
+
+    <view class="checkin-total">
+      <text class="hud-stones-icon">💎</text>
+      <text class="checkin-total-num">{{spiritStones}}</text>
+    </view>
+
+    <view class="checkin-tiers">
+      <view class="checkin-tier {{checkinDisplay.streak >= 1 ? 'tier-active' : ''}}">
+        <text class="tier-days">1-5天</text>
+        <text class="tier-reward">💎×1/天</text>
+      </view>
+      <view class="checkin-tier {{checkinDisplay.streak >= 6 ? 'tier-active' : ''}}">
+        <text class="tier-days">6-10天</text>
+        <text class="tier-reward">💎×2/天</text>
+      </view>
+      <view class="checkin-tier {{checkinDisplay.streak >= 11 ? 'tier-active' : ''}}">
+        <text class="tier-days">11-20天</text>
+        <text class="tier-reward">💎×3/天</text>
+      </view>
+      <view class="checkin-tier {{checkinDisplay.streak >= 21 ? 'tier-active' : ''}}">
+        <text class="tier-days">21天+</text>
+        <text class="tier-reward">💎×5/天</text>
+      </view>
+    </view>
+  </view>
 </view>
 
 <!-- 加载中 -->

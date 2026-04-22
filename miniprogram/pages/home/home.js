@@ -6,11 +6,29 @@ Page({
     loading: true,
     character: null,
     cultivationStatus: null,
+    spiritStones: 0,
+    statusBarHeight: 0,
+    checkinStatus: {
+      checkedInToday: false,
+      streak: 0,
+      reward: 0,
+      nextStreak: 1,
+      nextReward: 1,
+      totalStones: 0,
+    },
+    showCheckinModal: false,
+    checkinDisplay: {
+      checkedIn: false,
+      streak: 0,
+      reward: 0,
+      nextReward: 1,
+    },
     achievements: [],
     achievementsExpanded: false,
     trend: null,
     trendBars: [],
     recommendations: null,
+    behaviorGoals: [],
     itemsGrouped: {},
     version: '',
     statusColors: {
@@ -41,7 +59,11 @@ Page({
   },
 
   onLoad() {
-    this.setData({ version: app.globalData.version });
+    const sysInfo = wx.getWindowInfo();
+    this.setData({
+      version: app.globalData.version,
+      statusBarHeight: sysInfo.statusBarHeight || 44,
+    });
   },
 
   onShow() {
@@ -64,6 +86,26 @@ Page({
       const trend = charData.trend || null;
       const trendBars = this.buildTrendBars(trend);
       const recommendations = this.getRecommendations(character, trend, itemsData.grouped || {});
+      const behaviorGoals = (charData.behaviorGoals || []).map(g => ({
+        ...g,
+        progressPct: Math.min(Math.round((g.currentCount / g.targetCount) * 100), 100),
+      }));
+      const cs = charData.checkinStatus || {};
+      const spiritStones = Number(charData.spiritStones || cs.totalStones || 0);
+      const checkinStatus = {
+        checkedInToday: !!cs.checkedInToday,
+        streak: cs.streak || 0,
+        reward: cs.reward || 0,
+        nextStreak: cs.nextStreak || 1,
+        nextReward: cs.nextReward || 1,
+        totalStones: Number(cs.totalStones || spiritStones),
+      };
+      const checkinDisplay = {
+        checkedIn: !!cs.checkedInToday,
+        streak: cs.checkedInToday ? (cs.streak || 0) : (cs.nextStreak || 0),
+        reward: cs.reward || 0,
+        nextReward: cs.nextReward || 1,
+      };
 
       // 预计算模板需要的值（WXML 不支持复杂表达式）
       const achievementsList = Array.isArray(achievements) ? achievements : [];
@@ -137,8 +179,12 @@ Page({
         trend,
         trendBars,
         recommendations,
+        behaviorGoals,
         itemsGrouped: itemsData.grouped || {},
         appVersion: charData.appVersion || '',
+        spiritStones,
+        checkinStatus,
+        checkinDisplay,
         attrList,
         legendItems,
         dropBonusText: cultivationStatus ? Math.round(cultivationStatus.dropBonus * 100) : 0,
@@ -180,7 +226,7 @@ Page({
     return dailyData.map(d => {
       const isToday = d.day === today;
       const barHeight = d.total > 0 ? Math.max(Math.round((d.total / maxTotal) * 100), 4) : 2;
-      const weekday = WEEKDAYS[new Date(`${d.day}T00:00:00`).getDay()];
+      const weekday = isToday ? '今' : WEEKDAYS[new Date(`${d.day}T00:00:00`).getDay()];
 
       const blocks = [];
       if (d.total > 0) {
@@ -385,6 +431,14 @@ Page({
     });
   },
 
+  showCheckin() {
+    this.setData({ showCheckinModal: true });
+  },
+
+  hideCheckin() {
+    this.setData({ showCheckinModal: false });
+  },
+
   goToBehavior(e) {
     const category = e?.currentTarget?.dataset?.category || '';
     if (category) {
@@ -396,6 +450,11 @@ Page({
 
   goToInventory() {
     wx.switchTab({ url: '/pages/inventory/inventory' });
+  },
+
+  goToGoalManage() {
+    app.globalData.openGoalManage = true;
+    wx.switchTab({ url: '/pages/behavior/behavior' });
   },
 
   logout() {

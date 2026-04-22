@@ -5,3 +5,4 @@ data.db-wal
 .DS_Store
 project.private.config.json
 .env
+R2.env

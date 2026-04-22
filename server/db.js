@@ -44,6 +44,7 @@ function initDB() {
       last_dexterity_activity TEXT DEFAULT NULL,
       last_perception_activity TEXT DEFAULT NULL,
       boss_wins TEXT DEFAULT '{}',
+      pinned_behaviors TEXT DEFAULT '[]',
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -165,6 +166,17 @@ function initDB() {
       UNIQUE(user_id, category, sub_type),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS behavior_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      sub_type TEXT NOT NULL,
+      target_count INTEGER NOT NULL,
+      period_key TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, sub_type, period_key),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   // V2-F01 FB-05 - 补充 behaviors.sub_category 字段（兼容已存在情况）
@@ -235,6 +247,20 @@ function initDB() {
     // 列已存在，忽略
   }
 
+  // 灵石货币字段
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN spirit_stones INTEGER DEFAULT 0`);
+  } catch (e) {
+    // 列已存在，忽略
+  }
+
+  // 快捷按钮置顶
+  try {
+    db.exec(`ALTER TABLE characters ADD COLUMN pinned_behaviors TEXT DEFAULT '[]'`);
+  } catch (e) {
+    // 列已存在，忽略
+  }
+
   // 环境状态迁移：正常/休假 -> 居家
   db.prepare("UPDATE users SET status = '居家' WHERE status = '正常'").run();
   db.prepare("UPDATE users SET status = '居家' WHERE status = '休假'").run();
@@ -249,6 +275,19 @@ function initDB() {
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(behavior_id, user_id, emoji),
       FOREIGN KEY (behavior_id) REFERENCES behaviors(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS checkins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      checkin_date TEXT NOT NULL,
+      streak INTEGER NOT NULL DEFAULT 1,
+      reward INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, checkin_date),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
   `);

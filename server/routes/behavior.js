@@ -3,6 +3,7 @@ const { db } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const { determineQuality, generateItem } = require('../services/itemGen');
 const { getCultivationStatus } = require('../services/cultivation');
+const { doCheckin } = require('../services/checkinService');
 const behaviorConfig = require('../data/behaviors.json');
 
 const router = express.Router();
@@ -191,6 +192,14 @@ router.post('/', (req, res) => {
       last_used_at = datetime('now')
   `).run(req.user.id, category, sub_type);
 
+  const checkinResult = doCheckin(req.user.id);
+  const attrTempRow = db.prepare(
+    `SELECT COALESCE(SUM(temp_value), 0) AS total
+     FROM items
+     WHERE user_id = ? AND attribute_type = ? AND status = 'unused'`
+  ).get(req.user.id, attrField);
+  const attrTempTotal = Math.round((attrTempRow?.total || 0) * 10) / 10;
+
   res.json({
     behavior: {
       id: behaviorId,
@@ -198,21 +207,69 @@ router.post('/', (req, res) => {
       sub_type,
       quality,
     },
-    item: { id: itemId, name: item.name, quality: item.quality, attribute_type: item.attribute_type, temp_value: item.temp_value },
+    item: {
+      id: itemId,
+      name: item.name,
+      quality: item.quality,
+      attribute_type: item.attribute_type,
+      temp_value: item.temp_value,
+      description: item.description,
+    },
     cultivationStatus: cultivation,
+    checkinResult,
+    attrTempTotal,
   });
 });
 
 // V2-F01 FB-05 - 获取用户 Top5 常用行为快捷入口
 router.get('/shortcuts', (req, res) => {
-  const shortcuts = db.prepare(`
+  const charRow = db.prepare('SELECT pinned_behaviors FROM characters WHERE user_id = ?').get(req.user.id);
+  let pinned = [];
+  try {
+    pinned = JSON.parse(charRow?.pinned_behaviors || '[]');
+  } catch (e) {
+    pinned = [];
+  }
+
+  const frequentShortcuts = db.prepare(`
     SELECT category, sub_type, use_count, last_used_at
     FROM user_behavior_shortcuts
     WHERE user_id = ?
     ORDER BY use_count DESC, last_used_at DESC
-    LIMIT 5
+    LIMIT 10
   `).all(req.user.id);
-  res.json(shortcuts);
+
+  const result = [];
+  const seen = new Set();
+
+  for (const p of pinned) {
+    const key = `${p.category}|${p.sub_type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const freq = frequentShortcuts.find(s => s.category === p.category && s.sub_type === p.sub_type);
+    result.push({
+      category: p.category,
+      sub_type: p.sub_type,
+      use_count: freq ? freq.use_count : 0,
+      last_used_at: freq ? freq.last_used_at : null,
+      pinned: true,
+    });
+  }
+
+  for (const s of frequentShortcuts) {
+    const key = `${s.category}|${s.sub_type}`;
+    if (seen.has(key) || result.length >= 5) continue;
+    seen.add(key);
+    result.push({
+      category: s.category,
+      sub_type: s.sub_type,
+      use_count: s.use_count,
+      last_used_at: s.last_used_at,
+      pinned: false,
+    });
+  }
+
+  res.json(result);
 });
 
 // V2-F01 FB-05 - 获取用户最近一次上报行为，用于一键重复

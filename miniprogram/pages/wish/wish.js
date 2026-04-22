@@ -498,6 +498,12 @@ Page({
     this.loadWishes();
   },
 
+  goToRewards() {
+    const app = getApp();
+    app.globalData.inventoryTab = 'rewards';
+    wx.switchTab({ url: '/pages/inventory/inventory' });
+  },
+
   backFromResult() {
     this.setData({ view: 'list', battleResult: null, visibleRounds: [], roundsComplete: false });
     this.loadWishes();

@@ -84,6 +84,23 @@
   background: rgba(139, 92, 246, 0.05);
 }
 
+/* 品质色竖条 */
+.item-quality-liang {
+  border-left: 6rpx solid #10b981;
+}
+
+.item-quality-shang {
+  border-left: 6rpx solid #3b82f6;
+}
+
+.item-quality-ji {
+  border-left: 6rpx solid #f59e0b;
+}
+
+.item-quality-fan {
+  border-left: 6rpx solid transparent;
+}
+
 /* 模拟 checkbox */
 .item-checkbox {
   margin-right: 20rpx;
@@ -130,7 +147,37 @@
   font-size: 22rpx;
   padding: 2rpx 10rpx;
   border-radius: 6rpx;
-  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 品质标签底色 */
+.item-quality-tag.quality-fan {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.item-quality-tag.quality-liang {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.item-quality-tag.quality-shang {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.item-quality-tag.quality-ji {
+  background: rgba(245, 158, 11, 0.15);
+}
+
+/* 炼化引导栏 */
+.synth-hint-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20rpx 32rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: #1a1a2e;
+  border-top: 1rpx solid #334155;
+  text-align: center;
+  z-index: 100;
 }
 
 /* 合成摘要栏 */
@@ -152,6 +199,20 @@
 .synth-info {
   flex: 1;
   min-width: 0;
+}
+
+.synth-progress-bar-bg {
+  height: 12rpx;
+  background: #252540;
+  border-radius: 6rpx;
+  overflow: hidden;
+  margin-bottom: 12rpx;
+}
+
+.synth-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+  border-radius: 6rpx;
 }
 
 .synth-btn {

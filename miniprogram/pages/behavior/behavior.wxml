@@ -24,13 +24,27 @@
 
       <!-- Top5 快捷 -->
       <view class="shortcut-grid" wx:if="{{shortcuts.length > 0}}">
-        <button class="shortcut-btn" wx:for="{{shortcuts}}" wx:key="index"
+        <button class="shortcut-btn {{item.pinned ? 'shortcut-pinned' : ''}}" wx:for="{{shortcuts}}" wx:key="index"
           bindtap="tapShortcut"
+          bindlongpress="onShortcutLongPress"
           data-category="{{item.category}}"
-          data-subtype="{{item.sub_type}}">
+          data-subtype="{{item.sub_type}}"
+          data-index="{{index}}"
+          data-pinned="{{item.pinned}}">
+          <view wx:if="{{item.pinned}}" class="pin-badge">★</view>
           <text>{{item.sub_type}}</text>
-          <text class="text-dim shortcut-count">{{item.count}}次</text>
+          <text class="text-dim shortcut-count">{{item.use_count}}次</text>
         </button>
+      </view>
+    </view>
+
+    <!-- 置顶操作菜单 -->
+    <view wx:if="{{showPinMenu}}" class="modal-mask" bindtap="closePinMenu">
+      <view class="pin-menu" catchtap="">
+        <view class="pin-menu-title">{{pinMenuTarget.sub_type}}</view>
+        <button wx:if="{{!pinMenuTarget.pinned}}" class="pin-menu-btn" bindtap="pinBehavior">★ 置顶显示</button>
+        <button wx:else class="pin-menu-btn" bindtap="unpinBehavior">取消置顶</button>
+        <button class="pin-menu-btn pin-menu-cancel" bindtap="closePinMenu">取消</button>
       </view>
     </view>
 
@@ -115,7 +129,7 @@
         <!-- 备注 -->
         <view class="form-group">
           <view class="form-label">备注 (可选)</view>
-          <textarea class="form-textarea" placeholder="添加备注..." value="{{description}}" bindinput="onDescriptionInput" maxlength="200" />
+          <textarea class="form-textarea" placeholder="添加备注..." value="{{description}}" bindinput="onDescriptionInput" maxlength="-1" />
         </view>
 
         <!-- 提交 -->
@@ -144,6 +158,41 @@
             <text class="text-dim">获得: </text>
             <text class="{{item.qualityClass}}">{{item.item_name}} ({{item.quality}})</text>
           </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 月度目标管理 -->
+    <view class="card">
+      <view class="flex-between" bindtap="toggleGoalPanel">
+        <view class="card-title" style="margin-bottom:0">本月目标</view>
+        <text class="text-dim">{{showGoalPanel ? '收起' : '展开'}}</text>
+      </view>
+
+      <view wx:if="{{showGoalPanel}}" style="margin-top:16rpx">
+        <view wx:for="{{monthlyGoals}}" wx:key="id" class="goal-manage-row">
+          <view class="flex-between">
+            <view>
+              <text class="text-bright">{{item.subType}}</text>
+              <text class="text-dim" style="margin-left:12rpx">{{item.currentCount}}/{{item.targetCount}}</text>
+            </view>
+            <text class="text-red" style="font-size:24rpx;padding:8rpx" bindtap="deleteGoal" data-id="{{item.id}}">删除</text>
+          </view>
+          <view class="goal-progress-bg" style="margin-top:8rpx">
+            <view class="goal-progress-fill {{item.completed ? 'goal-complete' : ''}}" style="width:{{item.progressPct}}%"></view>
+          </view>
+        </view>
+
+        <view class="goal-add-form" style="margin-top:20rpx">
+          <view class="flex-row" style="gap:12rpx">
+            <input class="form-input" style="flex:2" placeholder="行为名称（如：早起）" value="{{newGoalSubType}}" bindinput="onGoalSubTypeInput" />
+            <input class="form-input" style="flex:1" placeholder="目标次数" type="number" value="{{newGoalCount}}" bindinput="onGoalCountInput" />
+            <button class="btn btn-primary btn-small" bindtap="addGoal">添加</button>
+          </view>
+        </view>
+
+        <view wx:if="{{monthlyGoals.length === 0}}" class="text-dim" style="text-align:center;padding:24rpx 0;font-size:24rpx">
+          还没有设定目标，添加一个试试
         </view>
       </view>
     </view>
@@ -246,6 +295,56 @@
             <text class="{{item.qualityClass}}">{{item.item_name}} ({{item.quality}})</text>
           </view>
         </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 打卡成功弹窗 -->
+  <view wx:if="{{showRewardModal}}" class="modal-mask" bindtap="closeRewardModal">
+    <view class="modal-content reward-modal" catchtap="">
+      <view class="reward-header">
+        <text class="reward-title">修炼成功</text>
+      </view>
+
+      <!-- 第一层：即时收益 -->
+      <view class="reward-item-row">
+        <text class="reward-item-name {{rewardData.qualityClass}}">{{rewardData.itemName}}</text>
+        <text class="reward-quality-tag {{rewardData.qualityClass}}">{{rewardData.quality}}</text>
+      </view>
+      <view class="reward-attr-row">
+        <text class="text-dim">{{rewardData.attrName}} +{{rewardData.tempValue}} 临时属性</text>
+      </view>
+      <view wx:if="{{rewardData.description}}" class="reward-desc">
+        <text class="text-dim" style="font-style:italic">「{{rewardData.description}}」</text>
+      </view>
+
+      <!-- 第二层：积累进度 -->
+      <view class="reward-progress">
+        <view class="reward-progress-bar-bg">
+          <view class="reward-progress-bar-fill" style="width:{{rewardData.progressPct}}%"></view>
+        </view>
+        <view class="reward-progress-text">
+          <text class="text-dim">{{rewardData.attrName}}道具累计</text>
+          <text class="text-bright" style="font-weight:600"> {{rewardData.attrTempTotal}}/10</text>
+        </view>
+      </view>
+
+      <!-- 第三层：下一步引导 -->
+      <view class="reward-actions">
+        <button wx:if="{{rewardData.canSynth}}" class="btn btn-primary" bindtap="goToInventoryFromReward">
+          去背包炼化
+        </button>
+        <button wx:else class="btn btn-secondary" bindtap="closeRewardModal">
+          继续修炼
+        </button>
+        <view wx:if="{{!rewardData.canSynth}}" class="text-dim" style="font-size:24rpx;text-align:center;margin-top:12rpx">
+          还差 {{rewardData.remaining}} 点可炼化
+        </view>
+      </view>
+
+      <!-- 签到信息 -->
+      <view wx:if="{{rewardData.showCheckin}}" class="reward-checkin">
+        <text class="text-gold">💎 签到 +{{rewardData.checkinReward}} 灵石 · 连续{{rewardData.checkinStreak}}天</text>
       </view>
     </view>
   </view>
