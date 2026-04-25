@@ -1,0 +1,234 @@
+<view class="page-container">
+
+  <!-- ====== 列表视图 ====== -->
+  <view wx:if="{{!arena}}">
+
+    <!-- Tab 栏 -->
+    <view class="tab-bar">
+      <button class="tab-bar-item {{activeTab === 'active' ? 'active' : ''}}" data-tab="active" bindtap="switchTab">进行中</button>
+      <button class="tab-bar-item {{activeTab === 'completed' ? 'active' : ''}}" data-tab="completed" bindtap="switchTab">已结束</button>
+    </view>
+
+    <!-- 擂台卡片列表 -->
+    <view wx:if="{{arenas.length > 0}}">
+      <view class="card arena-card" wx:for="{{arenas}}" wx:key="id" bindtap="goToDetail" data-id="{{item.id}}">
+        <view class="flex-between" style="margin-bottom:12rpx">
+          <text class="text-bright" style="font-size:30rpx;font-weight:600">{{item.title}}</text>
+          <text class="tag arena-type-tag">{{item.typeLabel}}</text>
+        </view>
+        <view class="flex-between">
+          <text class="text-dim" style="font-size:24rpx">{{item.creator_name}} 发起</text>
+          <text class="text-dim" style="font-size:24rpx">{{item.participant_count}}人参与</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 空状态 -->
+    <view wx:else class="empty-state">暂无擂台，点击右下角发起一场</view>
+
+    <!-- 浮动发起按钮 -->
+    <view class="arena-fab" bindtap="showCreate">
+      <text style="font-size:40rpx;color:#fff">+</text>
+    </view>
+  </view>
+
+  <!-- ====== 详情视图 ====== -->
+  <view wx:if="{{arena}}">
+
+    <!-- 擂台信息 -->
+    <view class="card">
+      <view class="flex-between" style="margin-bottom:12rpx">
+        <text class="text-bright" style="font-size:34rpx;font-weight:700">{{arena.title}}</text>
+        <text class="tag arena-type-tag">{{arena.typeLabel}}</text>
+      </view>
+      <text wx:if="{{arena.description}}" class="text-dim" style="font-size:26rpx;display:block;margin-bottom:12rpx">{{arena.description}}</text>
+      <view class="flex-row" style="gap:24rpx;flex-wrap:wrap">
+        <text class="text-dim" style="font-size:24rpx">状态：<text class="{{arena.status === 'active' ? 'text-green' : 'text-dim'}}">{{arena.status === 'active' ? '进行中' : arena.status === 'completed' ? '已结束' : '已取消'}}</text></text>
+        <text wx:if="{{arena.currency === 'stones' && arena.reward_pool > 0}}" class="text-gold" style="font-size:24rpx">奖池 {{arena.reward_pool}} 灵石</text>
+        <text wx:if="{{arena.currency === 'chips'}}" class="text-dim" style="font-size:24rpx">筹码模式</text>
+      </view>
+    </view>
+
+    <!-- 参与者列表 -->
+    <view class="card">
+      <view class="card-title">参与者</view>
+      <view wx:if="{{participants.length === 0}}" class="empty-state">暂无参与者</view>
+      <view wx:else>
+        <view class="participant-row" wx:for="{{participants}}" wx:key="id" wx:for-index="pIdx">
+          <view class="flex-row" style="gap:16rpx;flex:1">
+            <view wx:if="{{item.avatar}}" class="participant-avatar">
+              <image src="{{item.avatar}}" mode="aspectFill" style="width:64rpx;height:64rpx;border-radius:50%"></image>
+            </view>
+            <view wx:else class="participant-avatar-placeholder flex-center">
+              <text style="font-size:26rpx;color:#fff">{{item.nickname[0]}}</text>
+            </view>
+            <view style="flex:1">
+              <text class="text-bright" style="font-size:28rpx">{{item.nickname}}</text>
+              <view class="flex-row" style="gap:12rpx;margin-top:4rpx">
+                <text class="text-dim" style="font-size:22rpx">{{item.hasSubmitted ? '已提交' : '未提交'}}</text>
+                <text wx:if="{{item.resultLabel}}" style="font-size:22rpx;color:{{item.resultColor}}">{{item.resultLabel}}</text>
+                <text wx:if="{{item.currency_change !== 0}}" class="{{item.currency_change > 0 ? 'text-green' : 'text-red'}}" style="font-size:22rpx">{{item.currency_change > 0 ? '+' : ''}}{{item.currency_change}}</text>
+              </view>
+            </view>
+          </view>
+
+          <view wx:if="{{isCreator && arena.type === 'quiz' && arena.status === 'active' && item.user_id !== arena.creator_id && item.hasSubmitted && !item.result}}" class="flex-row" style="gap:8rpx">
+            <button class="judge-btn {{item.judgeResult === 'win' ? 'judge-btn-win' : ''}}" data-idx="{{pIdx}}" data-result="win" bindtap="onJudgeChange">胜</button>
+            <button class="judge-btn {{item.judgeResult === 'lose' ? 'judge-btn-lose' : ''}}" data-idx="{{pIdx}}" data-result="lose" bindtap="onJudgeChange">负</button>
+          </view>
+
+          <view wx:if="{{isCreator && arena.currency === 'chips' && arena.status === 'active'}}" style="width:160rpx">
+            <input class="form-input" type="number" placeholder="筹码变动" value="{{item.chipChange}}" data-idx="{{pIdx}}" bindinput="onChipChangeInput" style="height:64rpx;font-size:24rpx;text-align:center" />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{isCreator && arena.type === 'quiz' && arena.status === 'active'}}" class="card">
+      <view class="card-title">提交的答案</view>
+      <view wx:if="{{arena.config}}" style="margin-bottom:16rpx">
+        <text class="text-dim" style="font-size:24rpx">题目：</text>
+        <text class="text-bright" style="font-size:26rpx">{{arena.config.question}}</text>
+        <view wx:if="{{arena.config.correct_answer}}" style="margin-top:4rpx">
+          <text class="text-dim" style="font-size:24rpx">参考答案：</text>
+          <text class="text-gold" style="font-size:26rpx">{{arena.config.correct_answer}}</text>
+        </view>
+      </view>
+      <view wx:for="{{participants}}" wx:key="id">
+        <view wx:if="{{item.hasSubmitted && item.user_id !== arena.creator_id}}" style="margin-bottom:12rpx">
+          <text class="text-dim" style="font-size:24rpx">{{item.nickname}}：</text>
+          <text class="text-bright" style="font-size:26rpx">{{item.submission.text}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{arena.status === 'active'}}">
+      <view wx:if="{{!myParticipant}}" style="margin-bottom:32rpx">
+        <button class="btn btn-primary" bindtap="joinArena">加入擂台</button>
+      </view>
+
+      <view wx:elif="{{myParticipant && !myParticipant.hasSubmitted}}" class="card">
+        <view class="card-title">提交成绩</view>
+
+        <view wx:if="{{arena.type === 'quiz'}}">
+          <view wx:if="{{arena.config}}" style="margin-bottom:16rpx">
+            <text class="text-dim" style="font-size:24rpx">题目：</text>
+            <text class="text-bright" style="font-size:28rpx">{{arena.config.question}}</text>
+          </view>
+          <view class="form-group">
+            <text class="form-label">你的答案</text>
+            <input class="form-input" placeholder="输入答案" value="{{answerText}}" bindinput="onAnswerInput" />
+          </view>
+        </view>
+
+        <view wx:if="{{arena.type === 'fitness'}}">
+          <view class="form-group">
+            <text class="form-label">成绩（{{arena.config.unit || '次'}}）</text>
+            <input class="form-input" type="number" placeholder="输入成绩" value="{{scoreInput}}" bindinput="onScoreInput" />
+          </view>
+        </view>
+
+        <view class="form-group">
+          <text class="form-label">证据图片（可选）</text>
+          <view class="flex-row" style="gap:16rpx;margin-top:8rpx">
+            <view wx:if="{{evidenceImage}}" class="evidence-preview">
+              <image src="{{evidenceImage}}" mode="aspectFill" style="width:160rpx;height:160rpx;border-radius:12rpx"></image>
+            </view>
+            <button class="btn btn-secondary btn-small" bindtap="chooseEvidence">{{evidenceImage ? '重新选择' : '选择图片'}}</button>
+          </view>
+        </view>
+
+        <button class="btn btn-primary" bindtap="submitResult">提交</button>
+      </view>
+
+      <view wx:elif="{{myParticipant && myParticipant.hasSubmitted && !isCreator}}" class="card">
+        <text class="text-dim" style="font-size:28rpx">已提交，等待结算</text>
+      </view>
+
+      <view wx:if="{{isCreator}}" style="margin-top:16rpx">
+        <button wx:if="{{arena.type === 'quiz'}}" class="btn btn-primary" style="margin-bottom:16rpx" bindtap="judgeSubmissions">确认判定</button>
+        <button class="btn btn-primary" style="margin-bottom:16rpx" bindtap="settleArena">结算擂台</button>
+        <button class="btn btn-secondary" bindtap="cancelArena">取消擂台</button>
+      </view>
+    </view>
+
+    <view wx:if="{{arena.status !== 'active'}}" class="card" style="text-align:center">
+      <text class="text-dim" style="font-size:28rpx">{{arena.status === 'completed' ? '擂台已结算' : '擂台已取消'}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{showCreateForm}}" class="modal-mask" catchtap="hideCreate">
+    <view class="modal-content" catchtap="">
+      <view class="card-title" style="margin-bottom:24rpx">发起擂台</view>
+
+      <view class="form-group">
+        <text class="form-label">类型</text>
+        <picker range="{{typeOptions}}" value="{{createTypeIndex}}" bindchange="onTypeChange">
+          <view class="form-input flex-between">
+            <text>{{typeOptions[createTypeIndex]}}</text>
+            <text class="text-dim">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">标题</text>
+        <input class="form-input" placeholder="给擂台起个名" value="{{createTitle}}" bindinput="onTitleInput" />
+      </view>
+
+      <view class="form-group">
+        <text class="form-label">描述（可选）</text>
+        <textarea class="form-textarea" placeholder="补充说明" value="{{createDescription}}" bindinput="onDescInput"></textarea>
+      </view>
+
+      <block wx:if="{{typeOptions[createTypeIndex] === '出题挑战'}}">
+        <view class="form-group">
+          <text class="form-label">题目</text>
+          <input class="form-input" placeholder="输入题目" value="{{quizQuestion}}" bindinput="onQuizQuestionInput" />
+        </view>
+        <view class="form-group">
+          <text class="form-label">参考答案（可选）</text>
+          <input class="form-input" placeholder="输入参考答案" value="{{quizAnswer}}" bindinput="onQuizAnswerInput" />
+        </view>
+      </block>
+
+      <block wx:if="{{typeOptions[createTypeIndex] === '对局记录'}}">
+        <view class="form-group">
+          <text class="form-label">游戏名称</text>
+          <input class="form-input" placeholder="如：麻将、象棋" value="{{matchGame}}" bindinput="onMatchGameInput" />
+        </view>
+        <view class="form-group">
+          <text class="form-label">货币类型</text>
+          <picker range="{{currencyOptions}}" value="{{createCurrencyIndex}}" bindchange="onCurrencyChange">
+            <view class="form-input flex-between">
+              <text>{{currencyOptions[createCurrencyIndex]}}</text>
+              <text class="text-dim">▼</text>
+            </view>
+          </picker>
+        </view>
+      </block>
+
+      <block wx:if="{{typeOptions[createTypeIndex] === '体能比拼'}}">
+        <view class="form-group">
+          <text class="form-label">比拼项目</text>
+          <input class="form-input" placeholder="如：俯卧撑、平板撑" value="{{fitnessMetric}}" bindinput="onFitnessMetricInput" />
+        </view>
+        <view class="form-group">
+          <text class="form-label">单位</text>
+          <input class="form-input" placeholder="如：个、秒" value="{{fitnessUnit}}" bindinput="onFitnessUnitInput" />
+        </view>
+      </block>
+
+      <view wx:if="{{typeOptions[createTypeIndex] !== '对局记录' || currencyOptions[createCurrencyIndex] === '灵石'}}" class="form-group">
+        <text class="form-label">灵石奖池（可选）</text>
+        <input class="form-input" type="number" placeholder="0" value="{{createRewardPool}}" bindinput="onRewardInput" />
+      </view>
+
+      <view class="flex-row" style="gap:16rpx;margin-top:24rpx">
+        <button class="btn btn-secondary" style="flex:1" bindtap="hideCreate">取消</button>
+        <button class="btn btn-primary" style="flex:1" bindtap="createArena">确认发起</button>
+      </view>
+    </view>
+  </view>
+
+</view>

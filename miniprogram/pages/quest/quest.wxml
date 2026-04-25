@@ -1,0 +1,52 @@
+<view class="page-container">
+  <view class="tab-bar">
+    <button class="tab-bar-item {{activeTab === 0 ? 'active' : ''}}" data-idx="0" bindtap="switchTab">进行中</button>
+    <button class="tab-bar-item {{activeTab === 1 ? 'active' : ''}}" data-idx="1" bindtap="switchTab">投票中</button>
+    <button class="tab-bar-item {{activeTab === 2 ? 'active' : ''}}" data-idx="2" bindtap="switchTab">已结束</button>
+  </view>
+
+  <view wx:if="{{activeTab === 0 && dailyQuest}}" class="card quest-daily-card" bindtap="goDailyDetail">
+    <view class="flex-between" style="margin-bottom:8rpx">
+      <view class="flex-row" style="gap:12rpx">
+        <text class="quest-daily-badge">今日悬赏</text>
+        <text class="text-bright" style="font-size:30rpx;font-weight:600">{{dailyQuest.title}}</text>
+      </view>
+      <text class="text-dim" style="font-size:28rpx">></text>
+    </view>
+    <text class="text-dim" style="font-size:24rpx;display:block">{{dailyQuest.description}}</text>
+    <view class="flex-row" style="gap:16rpx;margin-top:8rpx">
+      <text wx:if="{{dailyQuest.my_submission}}" class="text-green" style="font-size:24rpx">已完成</text>
+      <text wx:else class="text-gold" style="font-size:24rpx">待完成</text>
+    </view>
+  </view>
+
+  <view wx:if="{{quests.length > 0}}">
+    <view class="card quest-card" wx:for="{{quests}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="flex-between" style="margin-bottom:8rpx">
+        <text class="text-bright" style="font-size:30rpx;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{item.title}}</text>
+        <text class="quest-type-tag" style="background:rgba(255,255,255,0.08);color:{{item.typeColor}}">{{item.typeLabel}}</text>
+      </view>
+      <view class="flex-between">
+        <view class="flex-row" style="gap:16rpx;flex-wrap:wrap">
+          <text class="text-dim" style="font-size:24rpx">{{item.creatorName}} 发起</text>
+          <text class="text-dim" style="font-size:24rpx">{{item.participantCount}}人参与</text>
+          <text wx:if="{{item.deadlineText}}" class="text-dim" style="font-size:24rpx">{{item.deadlineText}}</text>
+        </view>
+        <text wx:if="{{item.myRoleLabel}}" class="quest-role-tag" style="color:{{item.myRoleColor}}">{{item.myRoleLabel}}</text>
+      </view>
+      <view wx:if="{{item.bountyStones > 0}}" style="margin-top:8rpx">
+        <text class="text-gold" style="font-size:24rpx">💎 悬赏 {{item.bountyStones}} 灵石</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{hasMore}}" class="fold-action" bindtap="loadMore">
+    <text class="text-primary">加载更多</text>
+  </view>
+  <view wx:if="{{!loading && quests.length === 0}}" class="empty-state"><text>暂无任务</text></view>
+  <view wx:if="{{loading && quests.length === 0}}" class="empty-state"><text>加载中...</text></view>
+
+  <view class="quest-fab" bindtap="goCreate">
+    <text style="font-size:40rpx;color:#fff">+</text>
+  </view>
+</view>

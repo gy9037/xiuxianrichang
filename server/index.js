@@ -22,6 +22,9 @@ app.use('/api/family', require('./routes/family'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/checkin', require('./routes/checkin'));
 app.use('/api/behavior-goal', require('./routes/behaviorGoal'));
+app.use('/api/arenas', require('./routes/arena'));
+app.use('/api/report', require('./routes/report'));
+app.use('/api/quests', require('./routes/quest'));
 
 // SPA fallback
 app.get('*', (req, res) => {
@@ -45,4 +48,9 @@ app.listen(PORT, '0.0.0.0', () => {
     }
   }
   console.log('');
+
+  // 任务系统定时任务：每10分钟检查投票超时、任务超时、生成每日悬赏
+  const questJobs = require('./jobs/questJobs');
+  setInterval(questJobs.runAll, 10 * 60 * 1000);
+  console.log('任务系统定时任务已启动（间隔10分钟）');
 });

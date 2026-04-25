@@ -30,6 +30,8 @@ Page({
     recommendations: null,
     behaviorGoals: [],
     itemsGrouped: {},
+    dailyQuest: null,
+    pendingQuestCount: 0,
     version: '',
     statusColors: {
       '精进': '#f59e0b',
@@ -69,6 +71,8 @@ Page({
   onShow() {
     if (!api.isLoggedIn()) return;
     this.loadData();
+    this.loadDailyQuest();
+    this.loadPendingCount();
   },
 
   async loadData() {
@@ -455,6 +459,42 @@ Page({
   goToGoalManage() {
     app.globalData.openGoalManage = true;
     wx.switchTab({ url: '/pages/behavior/behavior' });
+  },
+
+  loadDailyQuest() {
+    var that = this;
+    api.get('/quests/daily').then(function (res) {
+      if (res && res.id) {
+        that.setData({ dailyQuest: res });
+      } else {
+        that.setData({ dailyQuest: null });
+      }
+    }).catch(function () {
+      that.setData({ dailyQuest: null });
+    });
+  },
+
+  loadPendingCount() {
+    var that = this;
+    api.get('/quests?status=voting&limit=1').then(function (res) {
+      that.setData({ pendingQuestCount: res.total || 0 });
+    }).catch(function () {
+      that.setData({ pendingQuestCount: 0 });
+    });
+  },
+
+  goQuests() {
+    wx.navigateTo({ url: '/pages/quest/quest' });
+  },
+
+  goDailyQuest() {
+    if (this.data.dailyQuest && this.data.dailyQuest.id) {
+      wx.navigateTo({ url: '/pages/quest-detail/quest-detail?id=' + this.data.dailyQuest.id });
+    }
+  },
+
+  goToReport() {
+    wx.navigateTo({ url: '/pages/report/report' });
   },
 
   logout() {

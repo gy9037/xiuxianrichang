@@ -5,6 +5,7 @@ const { determineQuality, generateItem } = require('../services/itemGen');
 const { getCultivationStatus } = require('../services/cultivation');
 const { doCheckin } = require('../services/checkinService');
 const behaviorConfig = require('../data/behaviors.json');
+const { SQL_TZ } = require('../utils/time');
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -156,59 +157,76 @@ router.post('/', (req, res) => {
   const item = generateItem(category, quality);
   if (!item) return res.status(500).json({ error: '道具生成失败' });
 
-  // Insert behavior record
-  const behaviorResult = db.prepare(
-    `INSERT INTO behaviors (user_id, category, sub_type, description, intensity, quality, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
-  ).run(req.user.id, category, sub_type, description || '', intensity || null, quality);
-
-  const behaviorId = behaviorResult.lastInsertRowid;
-
-  // Insert item
-  const itemResult = db.prepare(
-    `INSERT INTO items (user_id, name, quality, attribute_type, temp_value, status, source_behavior_id)
-     VALUES (?, ?, ?, ?, ?, 'unused', ?)`
-  ).run(req.user.id, item.name, item.quality, item.attribute_type, item.temp_value, behaviorId);
-
-  const itemId = itemResult.lastInsertRowid;
-
-  // Update behavior with item_id
-  db.prepare('UPDATE behaviors SET item_id = ? WHERE id = ?').run(itemId, behaviorId);
-
-  // Update last activity date for corresponding attribute
+  // Validate attribute mapping before entering transaction
   const attrField = CATEGORY_TO_ATTR[category];
   if (!SAFE_ATTR_FIELD_SET.has(attrField)) {
     return res.status(500).json({ error: '属性映射异常' });
   }
   const activityField = ACTIVITY_FIELD_BY_ATTR[attrField];
-  db.prepare(`UPDATE characters SET ${activityField} = datetime('now') WHERE user_id = ?`).run(req.user.id);
 
-  // 更新常用行为快捷入口频次
-  db.prepare(`
-    INSERT INTO user_behavior_shortcuts (user_id, category, sub_type, use_count, last_used_at)
-    VALUES (?, ?, ?, 1, datetime('now'))
-    ON CONFLICT(user_id, category, sub_type) DO UPDATE SET
-      use_count = use_count + 1,
-      last_used_at = datetime('now')
-  `).run(req.user.id, category, sub_type);
+  // Wrap all writes in a transaction for data consistency
+  const executeBehavior = db.transaction(() => {
+    // Insert behavior record
+    const behaviorResult = db.prepare(
+      `INSERT INTO behaviors (user_id, category, sub_type, description, intensity, quality, completed_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).run(req.user.id, category, sub_type, description || '', intensity || null, quality);
 
-  const checkinResult = doCheckin(req.user.id);
-  const attrTempRow = db.prepare(
-    `SELECT COALESCE(SUM(temp_value), 0) AS total
-     FROM items
-     WHERE user_id = ? AND attribute_type = ? AND status = 'unused'`
-  ).get(req.user.id, attrField);
-  const attrTempTotal = Math.round((attrTempRow?.total || 0) * 10) / 10;
+    const behaviorId = behaviorResult.lastInsertRowid;
+
+    // Insert item
+    const itemResult = db.prepare(
+      `INSERT INTO items (user_id, name, quality, attribute_type, temp_value, status, source_behavior_id)
+       VALUES (?, ?, ?, ?, ?, 'unused', ?)`
+    ).run(req.user.id, item.name, item.quality, item.attribute_type, item.temp_value, behaviorId);
+
+    const itemId = itemResult.lastInsertRowid;
+
+    // Update behavior with item_id
+    db.prepare('UPDATE behaviors SET item_id = ? WHERE id = ?').run(itemId, behaviorId);
+
+    // Update last activity date for corresponding attribute
+    db.prepare(`UPDATE characters SET ${activityField} = datetime('now') WHERE user_id = ?`).run(req.user.id);
+
+    // 更新常用行为快捷入口频次
+    db.prepare(`
+      INSERT INTO user_behavior_shortcuts (user_id, category, sub_type, use_count, last_used_at)
+      VALUES (?, ?, ?, 1, datetime('now'))
+      ON CONFLICT(user_id, category, sub_type) DO UPDATE SET
+        use_count = use_count + 1,
+        last_used_at = datetime('now')
+    `).run(req.user.id, category, sub_type);
+
+    // doCheckin internally uses db.transaction(), better-sqlite3 nests as savepoint
+    const checkinResult = doCheckin(req.user.id);
+
+    const attrTempRow = db.prepare(
+      `SELECT COALESCE(SUM(temp_value), 0) AS total
+       FROM items
+       WHERE user_id = ? AND attribute_type = ? AND status = 'unused'`
+    ).get(req.user.id, attrField);
+    const attrTempTotal = Math.round((attrTempRow?.total || 0) * 10) / 10;
+
+    return { behaviorId, itemId, checkinResult, attrTempTotal };
+  });
+
+  let result;
+  try {
+    result = executeBehavior();
+  } catch (err) {
+    console.error('POST /behavior transaction failed:', err);
+    return res.status(500).json({ error: '行为提交失败，请重试' });
+  }
 
   res.json({
     behavior: {
-      id: behaviorId,
+      id: result.behaviorId,
       category,
       sub_type,
       quality,
     },
     item: {
-      id: itemId,
+      id: result.itemId,
       name: item.name,
       quality: item.quality,
       attribute_type: item.attribute_type,
@@ -216,8 +234,8 @@ router.post('/', (req, res) => {
       description: item.description,
     },
     cultivationStatus: cultivation,
-    checkinResult,
-    attrTempTotal,
+    checkinResult: result.checkinResult,
+    attrTempTotal: result.attrTempTotal,
   });
 });
 
@@ -301,12 +319,12 @@ router.get('/history', (req, res) => {
 
   const mm = String(month).padStart(2, '0');
   const rows = db.prepare(
-    `SELECT b.*, i.name as item_name, date(b.completed_at, 'localtime') as local_date
+    `SELECT b.*, i.name as item_name, date(b.completed_at, '${SQL_TZ}') as local_date
      FROM behaviors b
      LEFT JOIN items i ON i.id = b.item_id
      WHERE b.user_id = ?
-       AND strftime('%Y', b.completed_at, 'localtime') = ?
-       AND strftime('%m', b.completed_at, 'localtime') = ?
+       AND strftime('%Y', b.completed_at, '${SQL_TZ}') = ?
+       AND strftime('%m', b.completed_at, '${SQL_TZ}') = ?
      ORDER BY b.completed_at DESC`
   ).all(req.user.id, String(year), mm);
 
@@ -335,8 +353,8 @@ router.get('/weekly-summary', (req, res) => {
   // 如果今天是周日(0)，week_start = 今天；否则 week_start = 上一个周日
   const weekRange = db.prepare(`
     SELECT
-      date('now', 'localtime', '-' || strftime('%w', 'now', 'localtime') || ' days') AS week_start,
-      date('now', 'localtime', '-' || strftime('%w', 'now', 'localtime') || ' days', '+6 days') AS week_end
+      date('now', '${SQL_TZ}', '-' || strftime('%w', 'now', '${SQL_TZ}') || ' days') AS week_start,
+      date('now', '${SQL_TZ}', '-' || strftime('%w', 'now', '${SQL_TZ}') || ' days', '+6 days') AS week_end
   `).get();
 
   const { week_start, week_end } = weekRange;
@@ -348,15 +366,15 @@ router.get('/weekly-summary', (req, res) => {
       COUNT(item_id) AS item_count
     FROM behaviors
     WHERE user_id = ?
-      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+      AND date(completed_at, '${SQL_TZ}') BETWEEN ? AND ?
   `).get(userId, week_start, week_end);
 
   // 2. active_days：本周有记录的不同日期数
   const activeDaysRow = db.prepare(`
-    SELECT COUNT(DISTINCT date(completed_at, 'localtime')) AS active_days
+    SELECT COUNT(DISTINCT date(completed_at, '${SQL_TZ}')) AS active_days
     FROM behaviors
     WHERE user_id = ?
-      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+      AND date(completed_at, '${SQL_TZ}') BETWEEN ? AND ?
   `).get(userId, week_start, week_end);
 
   // 3. category_distribution：按 category 分组计数，降序，最多 5 条
@@ -364,7 +382,7 @@ router.get('/weekly-summary', (req, res) => {
     SELECT category, COUNT(*) AS count
     FROM behaviors
     WHERE user_id = ?
-      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+      AND date(completed_at, '${SQL_TZ}') BETWEEN ? AND ?
     GROUP BY category
     ORDER BY count DESC
     LIMIT 5
@@ -375,7 +393,7 @@ router.get('/weekly-summary', (req, res) => {
     SELECT quality, COUNT(*) AS count
     FROM behaviors
     WHERE user_id = ?
-      AND date(completed_at, 'localtime') BETWEEN ? AND ?
+      AND date(completed_at, '${SQL_TZ}') BETWEEN ? AND ?
     GROUP BY quality
   `).all(userId, week_start, week_end);
 
@@ -384,22 +402,22 @@ router.get('/weekly-summary', (req, res) => {
 
   // 5. streak：从今天往前数连续有记录的天数
   // 先检查今天是否有记录
-  const todayStr = db.prepare(`SELECT date('now', 'localtime') AS today`).get().today;
+  const todayStr = db.prepare(`SELECT date('now', '${SQL_TZ}') AS today`).get().today;
   const hasTodayRow = db.prepare(`
     SELECT COUNT(*) AS cnt
     FROM behaviors
     WHERE user_id = ?
-      AND date(completed_at, 'localtime') = ?
+      AND date(completed_at, '${SQL_TZ}') = ?
   `).get(userId, todayStr);
   const hasToday = hasTodayRow.cnt > 0;
 
   // 获取所有有记录的日期（降序），从起始日开始往前数连续天数
-  const startDate = hasToday ? todayStr : db.prepare(`SELECT date('now', 'localtime', '-1 day') AS d`).get().d;
+  const startDate = hasToday ? todayStr : db.prepare(`SELECT date('now', '${SQL_TZ}', '-1 day') AS d`).get().d;
   const activeDates = db.prepare(`
-    SELECT DISTINCT date(completed_at, 'localtime') AS d
+    SELECT DISTINCT date(completed_at, '${SQL_TZ}') AS d
     FROM behaviors
     WHERE user_id = ?
-      AND date(completed_at, 'localtime') <= ?
+      AND date(completed_at, '${SQL_TZ}') <= ?
     ORDER BY d DESC
     LIMIT 365
   `).all(userId, startDate);

@@ -1,0 +1,56 @@
+.report-list-item {
+  margin-bottom: 16rpx;
+}
+
+.report-type-badge {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+  font-weight: 600;
+}
+
+.report-type-monthly {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.report-type-quarterly {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.report-type-yearly {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.unread-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.report-text-view .card {
+  margin-bottom: 16rpx;
+}
+
+.attr-bar-bg {
+  height: 16rpx;
+  background: #252540;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.attr-bar-fill {
+  height: 100%;
+  border-radius: 8rpx;
+  transition: width 0.3s;
+}
+
+.canvas-container {
+  display: flex;
+  justify-content: center;
+  border-radius: 16rpx;
+  overflow: hidden;
+}

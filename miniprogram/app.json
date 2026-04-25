@@ -5,6 +5,11 @@
     "pages/inventory/inventory",
     "pages/wish/wish",
     "pages/family/family",
+    "pages/report/report",
+    "pages/quest/quest",
+    "pages/quest-detail/quest-detail",
+    "pages/quest-create/quest-create",
+    "pages/arena/arena",
     "pages/login/login"
   ],
   "window": {

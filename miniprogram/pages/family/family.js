@@ -120,6 +120,8 @@ Page({
     wishesVisible: [],
     wishesCollapsed: true,
     wishesExtra: 0,
+    // 家庭任务
+    familyQuests: [],
     // 防连点
     _reactingMap: {},
   },
@@ -135,16 +137,29 @@ Page({
       api.get('/family/members').catch(function () { return []; }),
       api.get('/family/feed').catch(function () { return []; }),
       api.get('/wishes').catch(function () { return []; }),
+      api.get('/quests?status=active,voting&limit=3').catch(function () { return { quests: [] }; }),
     ]).then(function (res) {
       var rawMembers = res[0] || [];
       var rawFeed = res[1] || [];
       var rawWishes = res[2] || [];
+      var rawQuests = res[3] || {};
 
       var members = rawMembers.map(prepareMember);
       var feed = rawFeed.map(prepareFeedItem);
       var teamWishes = rawWishes.filter(function (w) {
         return w.type === '团队' && w.status !== 'redeemed';
       }).map(prepareWish);
+      var familyQuests = (rawQuests.quests || []).map(function (q) {
+        var statusLabel = q.status === 'voting' ? '投票中' : '进行中';
+        var statusColor = q.status === 'voting' ? '#f59e0b' : '#10b981';
+        return {
+          id: q.id,
+          title: q.title,
+          statusLabel: statusLabel,
+          statusColor: statusColor,
+          participantCount: q.participant_count || 0,
+        };
+      });
 
       that.setData({
         loading: false,
@@ -157,6 +172,7 @@ Page({
         feedPage: 1,
         feedHasMore: feed.length > FEED_PAGE_SIZE,
         wishes: teamWishes,
+        familyQuests: familyQuests,
         wishesVisible: teamWishes.slice(0, WISHES_FOLD),
         wishesCollapsed: teamWishes.length > WISHES_FOLD,
         wishesExtra: Math.max(0, teamWishes.length - WISHES_FOLD),
@@ -270,5 +286,18 @@ Page({
       update[path + '.members'] = wish.allMembers;
     }
     this.setData(update);
+  },
+
+  goToArena() {
+    wx.navigateTo({ url: '/pages/arena/arena' });
+  },
+
+  goQuests: function () {
+    wx.navigateTo({ url: '/pages/quest/quest' });
+  },
+
+  goQuestDetail: function (e) {
+    var id = e.currentTarget.dataset.id;
+    wx.navigateTo({ url: '/pages/quest-detail/quest-detail?id=' + id });
   },
 });

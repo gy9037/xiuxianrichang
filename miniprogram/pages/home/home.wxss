@@ -103,24 +103,6 @@
   margin-bottom: 0;
 }
 
-.goal-progress-bg {
-  height: 12rpx;
-  background: #252540;
-  border-radius: 6rpx;
-  overflow: hidden;
-}
-
-.goal-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
-  border-radius: 6rpx;
-  transition: width 0.3s;
-}
-
-.goal-complete {
-  background: linear-gradient(90deg, #10b981, #34d399);
-}
-
 .achievement-item {
   padding: 12rpx 0;
 }
@@ -222,6 +204,11 @@
   border: 2rpx solid #334155;
 }
 
+.fab-btn-secondary {
+  background: #252540;
+  border: 1rpx solid #334155;
+}
+
 .fab-btn:active {
   opacity: 0.85;
   transform: scale(0.95);
@@ -248,27 +235,6 @@
 }
 
 /* 签到弹窗 */
-.modal-mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: #1a1a2e;
-  border-radius: 16rpx;
-  width: 600rpx;
-  padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.5);
-}
-
 .checkin-header {
   display: flex;
   justify-content: space-between;
@@ -368,4 +334,19 @@
   font-size: 22rpx;
   color: #e2e8f0;
   font-weight: 600;
+}
+
+/* 今日悬赏卡片 */
+.home-daily-quest {
+  border: 2rpx solid #d4a574;
+}
+
+.home-daily-badge {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #0f0f1a;
+  background: linear-gradient(135deg, #d4a574, #f5d4a0);
+  padding: 4rpx 16rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
 }

@@ -292,10 +292,164 @@ function initDB() {
     );
   `);
 
+  // 擂台系统
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS arenas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_id INTEGER NOT NULL,
+      creator_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      config TEXT,
+      currency TEXT DEFAULT 'stones',
+      reward_pool INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',
+      started_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (family_id) REFERENCES families(id),
+      FOREIGN KEY (creator_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS arena_participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      arena_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      submission TEXT,
+      result TEXT,
+      currency_change INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(arena_id, user_id),
+      FOREIGN KEY (arena_id) REFERENCES arenas(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
+  // 筹码字段迁移
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN chips INTEGER DEFAULT 0');
+  } catch (e) {
+    // 字段已存在，忽略
+  }
+
+  // 任务系统 - 活跃用户标记
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`);
+  } catch (e) {
+    // 列已存在，忽略
+  }
+
+  // V1.2.7 - 数据报告缓存表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      period_key TEXT NOT NULL,
+      data TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, type, period_key),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
+  // 任务系统 - 4 张核心表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS quests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      family_id INTEGER NOT NULL,
+      creator_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      category TEXT DEFAULT NULL,
+      goal_type TEXT DEFAULT 'manual',
+      goal_config TEXT DEFAULT '{}',
+      mode TEXT DEFAULT 'cooperative',
+      reward_stones INTEGER DEFAULT 0,
+      reward_items TEXT DEFAULT '[]',
+      bounty_stones INTEGER DEFAULT 0,
+      source_pool_id INTEGER DEFAULT NULL,
+      status TEXT DEFAULT 'voting',
+      vote_deadline TEXT DEFAULT NULL,
+      deadline TEXT DEFAULT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT DEFAULT NULL,
+      FOREIGN KEY (family_id) REFERENCES families(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS quest_participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quest_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      vote TEXT DEFAULT NULL,
+      progress TEXT DEFAULT '{}',
+      submission TEXT DEFAULT NULL,
+      submitted_at TEXT DEFAULT NULL,
+      result TEXT DEFAULT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(quest_id, user_id),
+      FOREIGN KEY (quest_id) REFERENCES quests(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS quest_judgments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quest_id INTEGER NOT NULL,
+      target_user_id INTEGER NOT NULL,
+      judge_user_id INTEGER NOT NULL,
+      verdict TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(quest_id, target_user_id, judge_user_id),
+      FOREIGN KEY (quest_id) REFERENCES quests(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS system_quest_pool (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      requires_photo INTEGER DEFAULT 0,
+      reward_quality TEXT DEFAULT '凡品'
+    );
+  `);
+
+  // 任务系统索引
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_quests_family_status ON quests(family_id, status);
+    CREATE INDEX IF NOT EXISTS idx_quests_family_type ON quests(family_id, type, created_at);
+    CREATE INDEX IF NOT EXISTS idx_qp_quest ON quest_participants(quest_id);
+    CREATE INDEX IF NOT EXISTS idx_qp_user ON quest_participants(user_id);
+    CREATE INDEX IF NOT EXISTS idx_qj_quest ON quest_judgments(quest_id);
+  `);
+
   // Seed default family if none exists
   const familyCount = db.prepare('SELECT COUNT(*) as count FROM families').get();
   if (familyCount.count === 0) {
     db.prepare('INSERT INTO families (name) VALUES (?)').run('默认家庭');
+  }
+
+  // 任务系统 - 系统悬赏任务池 seed
+  const poolCount = db.prepare('SELECT COUNT(*) as count FROM system_quest_pool').get();
+  if (poolCount.count === 0) {
+    const insert = db.prepare(
+      'INSERT INTO system_quest_pool (category, title, description, requires_photo, reward_quality) VALUES (?, ?, ?, ?, ?)'
+    );
+    const seedData = require('./data/quest-pool-seed.json');
+    const insertMany = db.transaction((items) => {
+      for (const item of items) {
+        insert.run(
+          item.category,
+          item.title,
+          item.description,
+          item.requires_photo ? 1 : 0,
+          item.reward_quality || '凡品'
+        );
+      }
+    });
+    insertMany(seedData);
   }
 }
 

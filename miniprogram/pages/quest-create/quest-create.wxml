@@ -1,0 +1,94 @@
+<view class="page-container">
+  <view class="card">
+    <view class="card-title">任务类型</view>
+    <view class="qc-type-row">
+      <view class="qc-type-btn {{typeIndex === 0 ? 'qc-type-active qc-type-self' : ''}}" data-idx="0" bindtap="switchType"><text>自我悬赏</text></view>
+      <view class="qc-type-btn {{typeIndex === 1 ? 'qc-type-active qc-type-challenge' : ''}}" data-idx="1" bindtap="switchType"><text>挑战</text></view>
+      <view class="qc-type-btn {{typeIndex === 2 ? 'qc-type-active qc-type-bounty' : ''}}" data-idx="2" bindtap="switchType"><text>悬赏</text></view>
+    </view>
+    <view class="qc-type-hint">
+      <text wx:if="{{typeIndex === 0}}" class="text-dim" style="font-size:24rpx">给自己设定目标，无需投票直接生效</text>
+      <text wx:if="{{typeIndex === 1}}" class="text-dim" style="font-size:24rpx">向家庭成员发起挑战，需投票通过</text>
+      <text wx:if="{{typeIndex === 2}}" class="text-dim" style="font-size:24rpx">出资灵石悬赏，完成者获得灵石奖励</text>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="form-group">
+      <text class="form-label">标题</text>
+      <input class="form-input" placeholder="任务标题（1-50字）" value="{{title}}" bindinput="onTitleInput" maxlength="50" />
+    </view>
+    <view class="form-group">
+      <text class="form-label">描述（可选）</text>
+      <textarea class="form-textarea" placeholder="补充说明任务要求" value="{{description}}" bindinput="onDescInput" maxlength="500"></textarea>
+    </view>
+    <view class="form-group">
+      <text class="form-label">属性类别（可选）</text>
+      <picker range="{{categoryOptions}}" value="{{categoryIndex}}" bindchange="onCategoryChange">
+        <view class="form-input flex-between">
+          <text>{{categoryIndex >= 0 ? categoryOptions[categoryIndex] : '选择属性'}}</text>
+          <text class="text-dim">▼</text>
+        </view>
+      </picker>
+    </view>
+    <view class="form-group">
+      <text class="form-label">截止时间</text>
+      <picker mode="date" start="{{minDate}}" value="{{deadline}}" bindchange="onDeadlineChange">
+        <view class="form-input flex-between">
+          <text>{{deadline || '选择日期'}}</text>
+          <text class="text-dim">▼</text>
+        </view>
+      </picker>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">结算方式</view>
+    <picker range="{{goalTypeLabels}}" value="{{goalTypeIndex}}" bindchange="onGoalTypeChange">
+      <view class="form-input flex-between" style="margin-bottom:16rpx">
+        <text>{{goalTypeLabels[goalTypeIndex]}}</text>
+        <text class="text-dim">▼</text>
+      </view>
+    </picker>
+    <block wx:if="{{goalTypeIndex > 0}}">
+      <view class="form-group">
+        <text class="form-label">目标数值</text>
+        <input class="form-input" type="number" placeholder="如：5" value="{{goalTarget}}" bindinput="onGoalTargetInput" />
+      </view>
+      <view wx:if="{{goalTypeIndex === 2}}" class="form-group">
+        <text class="form-label">行为子类型</text>
+        <input class="form-input" placeholder="如：早起" value="{{goalSubType}}" bindinput="onGoalSubTypeInput" />
+      </view>
+      <view class="form-group">
+        <text class="form-label">统计周期（可选，默认按截止月份）</text>
+        <input class="form-input" placeholder="如：2026-04 或 2026-W17" value="{{goalPeriod}}" bindinput="onGoalPeriodInput" />
+      </view>
+    </block>
+  </view>
+
+  <view wx:if="{{typeIndex === 1}}" class="card">
+    <view class="card-title">模式</view>
+    <picker range="{{modeLabels}}" value="{{modeIndex}}" bindchange="onModeChange">
+      <view class="form-input flex-between">
+        <text>{{modeLabels[modeIndex]}}</text>
+        <text class="text-dim">▼</text>
+      </view>
+    </picker>
+    <text class="text-dim" style="font-size:24rpx;display:block;margin-top:8rpx">{{modeIndex === 0 ? '合作模式：全员达成才全员获奖' : '竞争模式：按完成排名，第1名品质升一级'}}</text>
+  </view>
+
+  <view wx:if="{{typeIndex === 2}}" class="card">
+    <view class="card-title">悬赏灵石</view>
+    <view class="form-group">
+      <view class="flex-between" style="margin-bottom:8rpx">
+        <text class="form-label" style="margin-bottom:0">出资数量</text>
+        <text class="text-gold" style="font-size:24rpx">余额：💎 {{myStones}}</text>
+      </view>
+      <input class="form-input" type="number" placeholder="输入灵石数量" value="{{rewardStones}}" bindinput="onRewardInput" />
+    </view>
+  </view>
+
+  <view style="margin-top:16rpx;padding-bottom:32rpx">
+    <button class="btn btn-primary" style="width:100%" bindtap="submit" disabled="{{submitting}}">{{submitting ? '创建中...' : '确认创建'}}</button>
+  </view>
+</view>

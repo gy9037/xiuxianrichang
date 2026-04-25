@@ -5,6 +5,9 @@ const { checkPromotion, getTotalAttrs, getRealmByName } = require('../services/r
 const { calculateDecay, getDecayStatus } = require('../services/decay');
 const { getCultivationStatus } = require('../services/cultivation');
 const { getCheckinStatus } = require('../services/checkinService');
+const behaviorConfig = require('../data/behaviors.json');
+const { SQL_TZ } = require('../utils/time');
+const { getUserGoalsWithProgress } = require('../services/behaviorGoalService');
 const pkg = require('../../package.json');
 
 const router = express.Router();
@@ -23,6 +26,27 @@ const ACHIEVEMENTS = [
 const TAG_PRESETS = ['慢性病', '发育期', '熬夜习惯', '久坐', '学业压力'];
 const SAFE_ATTR_FIELD_SET = new Set(ATTR_FIELDS);
 
+function getMergedBehaviorData(familyId, userStatus = '居家') {
+  const validStatus = behaviorConfig.statuses.includes(userStatus) ? userStatus : '居家';
+  const result = {};
+  for (const [category, catConfig] of Object.entries(behaviorConfig.categories)) {
+    result[category] = [...(catConfig[validStatus] || catConfig['居家'] || [])];
+  }
+  const customs = db.prepare(
+    'SELECT category, name FROM custom_behaviors WHERE family_id = ? ORDER BY created_at ASC'
+  ).all(familyId);
+  for (const custom of customs) {
+    if (!result[custom.category]) result[custom.category] = [];
+    if (!result[custom.category].includes(custom.name)) {
+      result[custom.category].push(custom.name);
+    }
+  }
+  for (const [category, list] of Object.entries(result)) {
+    if (list.length === 0) delete result[category];
+  }
+  return result;
+}
+
 function parseTags(rawTags) {
   try {
     const parsed = JSON.parse(rawTags || '[]');
@@ -30,12 +54,6 @@ function parseTags(rawTags) {
   } catch {
     return [];
   }
-}
-
-function getCurrentPeriodKey() {
-  const now = new Date();
-  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  return `${utc8.getUTCFullYear()}-${String(utc8.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function getRecentTrend(userId) {
@@ -63,7 +81,7 @@ function getRecentTrend(userId) {
   }
 
   const rows = db.prepare(
-    `SELECT date(b.completed_at, 'localtime') AS day,
+    `SELECT date(b.completed_at, '${SQL_TZ}') AS day,
      i.attribute_type AS attribute_type,
      COUNT(*) AS count,
      COALESCE(SUM(i.temp_value), 0) AS temp_value
@@ -145,30 +163,7 @@ router.get('/', (req, res) => {
     pinnedBehaviors = [];
   }
 
-  const periodKey = getCurrentPeriodKey();
-  const goals = db.prepare(
-    'SELECT * FROM behavior_goals WHERE user_id = ? AND period_key = ?'
-  ).all(req.user.id, periodKey);
-  const monthStart = `${periodKey}-01`;
-  const goalCounts = db.prepare(`
-    SELECT sub_type, COUNT(*) AS count
-    FROM behaviors
-    WHERE user_id = ?
-      AND date(completed_at, 'localtime') >= ?
-      AND strftime('%Y-%m', completed_at, 'localtime') = ?
-    GROUP BY sub_type
-  `).all(req.user.id, monthStart, periodKey);
-  const goalCountMap = {};
-  for (const row of goalCounts) {
-    goalCountMap[row.sub_type] = row.count;
-  }
-  const behaviorGoals = goals.map(g => ({
-    id: g.id,
-    subType: g.sub_type,
-    targetCount: g.target_count,
-    currentCount: goalCountMap[g.sub_type] || 0,
-    completed: (goalCountMap[g.sub_type] || 0) >= g.target_count,
-  }));
+  const behaviorGoals = getUserGoalsWithProgress(req.user.id);
 
   res.json({
     character: {
@@ -251,9 +246,19 @@ router.patch('/pin-behavior', (req, res) => {
   if (pinnedBehaviors.length > 2) {
     return res.status(400).json({ error: '最多置顶 2 个行为' });
   }
+
+  // 验证每项行为是否真实存在
+  const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
+  const userStatus = normalizeUserStatus(userRow?.status);
+  const mergedData = getMergedBehaviorData(req.user.family_id, userStatus);
+
   for (const item of pinnedBehaviors) {
     if (!item.category || !item.sub_type) {
       return res.status(400).json({ error: '每项需包含 category 和 sub_type' });
+    }
+    const list = mergedData[item.category];
+    if (!Array.isArray(list) || !list.includes(item.sub_type)) {
+      return res.status(400).json({ error: `行为「${item.category} - ${item.sub_type}」不存在` });
     }
   }
 

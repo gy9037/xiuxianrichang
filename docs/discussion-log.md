@@ -8,7 +8,7 @@
 ## 一、项目基本信息
 
 - **项目名称**：修仙日常（暂定）
-- **项目目录**：`/Users/openclaw/Claude开发项目/Xiuxianrichang/`
+- **项目目录**：`/Users/guoyong/AI开发项目/Xiuxianrichang/`
 - **产品类型**：休闲修仙养成游戏
 - **最终平台**：微信小游戏
 - **当前阶段**：Web版本开发（架构兼容后续迁移微信小游戏）
@@ -147,7 +147,7 @@
 - **待确认**：用户是否已完成服务端口开启
 
 ### 项目目录
-- 路径：`/Users/openclaw/Claude开发项目/Xiuxianrichang/`
+- 路径：`/Users/guoyong/AI开发项目/Xiuxianrichang/`
 - 当前内容：
   - `docs/PRD.md` — 产品需求文档 V2.0（已更新）
   - `docs/discussion-log.md` — 本文档
@@ -176,7 +176,7 @@
 2. 读取本文档（`docs/discussion-log.md`）了解产品决策上下文
 3. 读取当前版本策划案（`docs/iteration-v2.5.md`）了解当前迭代目标
 4. 检查 workspace 记忆文件（`contexts/memory/`）了解最新进展
-5. 启动服务：`cd /Users/openclaw/AI开发项目/Xiuxianrichang && npm start`
+5. 启动服务：`cd /Users/guoyong/AI开发项目/Xiuxianrichang && npm start`
 6. 本机访问 http://localhost:3000，局域网用IP访问
 
 ## 九、当前状态（2026-04-10 更新）
@@ -264,7 +264,7 @@
 ## 十一、启动方式
 
 ```bash
-cd /Users/openclaw/AI开发项目/Xiuxianrichang
+cd /Users/guoyong/AI开发项目/Xiuxianrichang
 npm start
 ```
 

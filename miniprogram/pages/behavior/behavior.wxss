@@ -1,33 +1,6 @@
 /* 行为页样式 */
 
-/* 品质颜色 */
-.quality-fan { color: #94a3b8; }
-.quality-liang { color: #10b981; }
-.quality-shang { color: #3b82f6; }
-.quality-ji { color: #f59e0b; }
-
 /* 打卡成功弹窗 */
-.modal-mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-content {
-  background: #1a1a2e;
-  border-radius: 16rpx;
-  width: 600rpx;
-  padding: 40rpx;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.5);
-}
-
 .reward-header {
   text-align: center;
   margin-bottom: 32rpx;
@@ -285,23 +258,6 @@
 
 .goal-manage-row:last-child {
   border-bottom: none;
-}
-
-.goal-progress-bg {
-  height: 12rpx;
-  background: #252540;
-  border-radius: 6rpx;
-  overflow: hidden;
-}
-
-.goal-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #8b5cf6, #a78bfa);
-  border-radius: 6rpx;
-}
-
-.goal-complete {
-  background: linear-gradient(90deg, #10b981, #34d399);
 }
 
 .goal-add-form .form-input {

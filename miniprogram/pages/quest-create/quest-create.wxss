@@ -1,0 +1,44 @@
+.qc-type-row {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.qc-type-btn {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx 0;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: #252540;
+  border: 2rpx solid #334155;
+}
+
+.qc-type-active {
+  font-weight: 600;
+  color: #fff;
+}
+
+.qc-type-self {
+  background: rgba(126, 200, 227, 0.15);
+  border-color: #7ec8e3;
+  color: #7ec8e3;
+}
+
+.qc-type-challenge {
+  background: rgba(199, 125, 186, 0.15);
+  border-color: #c77dba;
+  color: #c77dba;
+}
+
+.qc-type-bounty {
+  background: rgba(232, 168, 124, 0.15);
+  border-color: #e8a87c;
+  color: #e8a87c;
+}
+
+.qc-type-hint {
+  margin-top: 4rpx;
+}

@@ -1,0 +1,149 @@
+<view class="page-container" wx:if="{{!loading && quest}}">
+  <view class="card">
+    <view class="flex-between" style="margin-bottom:12rpx">
+      <text class="text-bright" style="font-size:34rpx;font-weight:700;flex:1">{{quest.title}}</text>
+      <text class="quest-type-tag" style="background:rgba(255,255,255,0.08);color:{{typeColor}}">{{typeLabel}}</text>
+    </view>
+    <text wx:if="{{quest.description}}" class="text-dim" style="font-size:26rpx;display:block;margin-bottom:12rpx">{{quest.description}}</text>
+    <view style="display:flex;flex-wrap:wrap;gap:16rpx;font-size:24rpx">
+      <text class="text-dim">发起人：{{creatorName}}</text>
+      <text class="text-dim">状态：<text style="color:{{quest.status === 'active' ? '#10b981' : quest.status === 'completed' ? '#8b5cf6' : '#94a3b8'}}">{{statusLabel}}</text></text>
+      <text wx:if="{{deadlineText}}" class="text-dim">{{deadlineText}}</text>
+      <text wx:if="{{categoryLabel}}" class="text-dim">属性：{{categoryLabel}}</text>
+      <text wx:if="{{modeLabel}}" class="text-dim">{{modeLabel}}</text>
+      <text wx:if="{{goalTypeLabel}}" class="text-dim">结算：{{goalTypeLabel}}</text>
+    </view>
+    <view wx:if="{{quest.bounty_stones > 0}}" style="margin-top:12rpx">
+      <text class="text-gold" style="font-size:26rpx">💎 悬赏 {{quest.bounty_stones}} 灵石</text>
+    </view>
+  </view>
+
+  <view wx:if="{{hasProgress}}" class="card">
+    <view class="card-title">任务进度</view>
+    <view wx:for="{{participants}}" wx:key="user_id">
+      <view wx:if="{{item.role === 'challenger' || item.role === 'bounty_taker'}}" style="margin-bottom:16rpx">
+        <view class="flex-between" style="margin-bottom:8rpx">
+          <text class="text-bright" style="font-size:26rpx">{{item.name}}</text>
+          <text class="text-dim" style="font-size:24rpx">{{item.progressCurrent}}/{{item.progressTarget}}</text>
+        </view>
+        <view class="goal-progress-bg">
+          <view class="goal-progress-fill {{item.progressPct >= 100 ? 'goal-complete' : ''}}" style="width:{{item.progressPct}}%"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">参与者</view>
+    <view wx:if="{{participants.length === 0}}" class="empty-state">暂无参与者</view>
+    <view wx:else>
+      <view class="qd-participant-row" wx:for="{{participants}}" wx:key="user_id">
+        <view class="flex-row" style="gap:12rpx;flex:1;min-width:0">
+          <view class="qd-avatar flex-center">
+            <text style="font-size:26rpx;color:#fff">{{item.name[0] || '?'}}</text>
+          </view>
+          <view style="flex:1;min-width:0">
+            <view class="flex-row" style="gap:8rpx">
+              <text class="text-bright" style="font-size:28rpx">{{item.name}}</text>
+              <text style="font-size:22rpx;color:{{item.roleColor}}">{{item.roleLabel}}</text>
+            </view>
+            <view class="flex-row" style="gap:12rpx;margin-top:4rpx">
+              <text wx:if="{{item.vote}}" class="text-dim" style="font-size:22rpx">{{item.vote === 'approve' ? '赞成' : '反对'}}</text>
+              <text wx:if="{{item.hasSubmission}}" class="text-blue" style="font-size:22rpx">已提交</text>
+              <text wx:if="{{item.resultLabel}}" style="font-size:22rpx;color:{{item.resultColor}}">{{item.resultLabel}}</text>
+            </view>
+          </view>
+        </view>
+        <view wx:if="{{item.canJudge}}" class="flex-row" style="gap:8rpx">
+          <button class="judge-btn judge-btn-pass" data-userid="{{item.user_id}}" data-verdict="pass" bindtap="handleJudge">通过</button>
+          <button class="judge-btn judge-btn-fail" data-userid="{{item.user_id}}" data-verdict="fail" bindtap="handleJudge">未完成</button>
+        </view>
+        <text wx:if="{{quest.status === 'judging' && item.judgedByMe}}" class="text-dim" style="font-size:22rpx">已判定</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{quest.status === 'judging' || quest.status === 'completed' || quest.status === 'failed'}}" class="card">
+    <view class="card-title">提交记录</view>
+    <view wx:if="{{hasSubmissions}}">
+      <view wx:for="{{participants}}" wx:key="user_id">
+        <view wx:if="{{item.hasSubmission}}" class="qd-submission-item">
+          <text class="text-bright" style="font-size:26rpx;font-weight:600">{{item.name}}</text>
+          <text class="text-dim" style="font-size:26rpx;display:block;margin-top:4rpx">{{item.submissionText}}</text>
+          <view wx:if="{{item.submissionPhotos.length > 0}}" class="qd-photo-grid">
+            <image wx:for="{{item.submissionPhotos}}" wx:for-item="photo" wx:key="*this" src="{{photo}}" mode="aspectFill" class="qd-photo-thumb"></image>
+          </view>
+        </view>
+      </view>
+    </view>
+    <view wx:else class="empty-state">暂无提交</view>
+  </view>
+
+  <view wx:if="{{quest.status === 'completed' || quest.status === 'failed'}}" class="card" style="text-align:center">
+    <text class="{{quest.status === 'completed' ? 'text-green' : 'text-dim'}}" style="font-size:30rpx;font-weight:600">{{quest.status === 'completed' ? '任务完成' : '任务失败'}}</text>
+  </view>
+
+  <view class="qd-action-bar">
+    <view wx:if="{{quest.status === 'voting' && !hasVoted && !isCreator}}">
+      <view wx:if="{{quest.type === 'challenge'}}" class="flex-row" style="gap:8rpx;margin-bottom:16rpx;justify-content:center">
+        <view class="qd-checkbox {{joinAsChallenger ? 'qd-checkbox-active' : ''}}" bindtap="toggleJoinAsChallenger">
+          <text wx:if="{{joinAsChallenger}}" style="font-size:20rpx;color:#fff">✓</text>
+        </view>
+        <text class="text-dim" style="font-size:26rpx" bindtap="toggleJoinAsChallenger">一起挑战</text>
+      </view>
+      <view class="flex-row" style="gap:16rpx">
+        <button class="btn btn-secondary" style="flex:1" data-approve="false" bindtap="handleVote">反对</button>
+        <button class="btn btn-primary" style="flex:1" data-approve="true" bindtap="handleVote">赞成</button>
+      </view>
+    </view>
+    <view wx:if="{{quest.status === 'voting' && (hasVoted || isCreator)}}" style="text-align:center">
+      <text class="text-dim" style="font-size:28rpx">{{isCreator ? '等待家庭成员投票' : '已投票，等待结果'}}</text>
+    </view>
+    <view wx:if="{{quest.status === 'active' && (myRole === 'challenger' || myRole === 'bounty_taker') && !hasSubmitted}}">
+      <button class="btn btn-primary" style="width:100%" bindtap="showSubmit">提交完成</button>
+    </view>
+    <view wx:if="{{quest.status === 'active' && quest.type === 'bounty' && !myParticipant}}">
+      <button class="btn btn-primary" style="width:100%" bindtap="handleTakeBounty">接取悬赏</button>
+    </view>
+    <view wx:if="{{quest.status === 'active' && hasSubmitted}}" style="text-align:center">
+      <text class="text-dim" style="font-size:28rpx">已提交，等待结算</text>
+    </view>
+    <view wx:if="{{quest.status === 'cancelled'}}" style="text-align:center">
+      <text class="text-dim" style="font-size:28rpx">任务已取消</text>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{loading}}" class="empty-state" style="padding-top:200rpx"><text>加载中...</text></view>
+
+<view wx:if="{{showSubmitModal}}" class="modal-mask" bindtap="hideSubmit">
+  <view class="modal-content qd-submit-modal" catchtap="">
+    <view class="flex-between" style="margin-bottom:24rpx">
+      <text class="card-title" style="margin-bottom:0">提交完成</text>
+      <text class="text-dim" style="font-size:32rpx;padding:8rpx" bindtap="hideSubmit">✕</text>
+    </view>
+    <view class="form-group">
+      <text class="form-label">完成说明</text>
+      <textarea class="form-textarea" placeholder="描述你的完成情况" value="{{submitText}}" bindinput="onSubmitTextInput" maxlength="500" style="min-height:160rpx"></textarea>
+    </view>
+    <view class="form-group">
+      <text class="form-label">照片（可选，最多3张）</text>
+      <view class="qd-photo-grid" style="margin-top:8rpx">
+        <view wx:for="{{submitPhotos}}" wx:key="tempPath" class="qd-photo-wrap">
+          <image src="{{item.tempPath}}" mode="aspectFill" class="qd-photo-thumb"></image>
+          <view class="qd-photo-remove" data-idx="{{index}}" bindtap="removePhoto">✕</view>
+        </view>
+        <view wx:if="{{submitPhotos.length < 3}}" class="qd-photo-add" bindtap="choosePhotos">
+          <text style="font-size:48rpx;color:#64748b">+</text>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{uploading}}" style="margin-bottom:16rpx">
+      <view class="goal-progress-bg">
+        <view class="goal-progress-fill" style="width:{{uploadProgress}}%"></view>
+      </view>
+      <text class="text-dim" style="font-size:24rpx;margin-top:4rpx;display:block;text-align:center">上传中 {{uploadProgress}}%</text>
+    </view>
+    <button class="btn btn-primary" style="width:100%" bindtap="submitCompletion" disabled="{{uploading}}">{{uploading ? '上传中...' : '确认提交'}}</button>
+  </view>
+</view>

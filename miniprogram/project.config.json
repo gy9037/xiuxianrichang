@@ -1,7 +1,7 @@
 {
   "miniprogramRoot": "./",
   "projectname": "xiuxian-richang",
-  "description": "\u4fee\u4ed9\u65e5\u5e38 - \u4f11\u95f2\u4fee\u4ed9\u517b\u6210\u6e38\u620f",
+  "description": "修仙日常 - 休闲修仙养成游戏",
   "appid": "wx3bc80a561ff930b9",
   "setting": {
     "urlCheck": false,
@@ -24,9 +24,26 @@
       "disablePlugins": [],
       "outputPath": ""
     },
-    "minifyWXML": true
+    "minifyWXML": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true
   },
   "compileType": "miniprogram",
   "condition": {},
-  "libVersion": "3.0.0"
+  "libVersion": "3.0.0",
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {}
 }

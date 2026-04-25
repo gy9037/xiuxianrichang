@@ -1,4 +1,5 @@
 const { db } = require('../db');
+const { SQL_TZ } = require('../utils/time');
 
 // 修炼状态定义（从高到低匹配）
 const CULTIVATION_LEVELS = [
@@ -10,7 +11,7 @@ const CULTIVATION_LEVELS = [
 
 function getCultivationStatus(userId) {
   const rows = db.prepare(`
-    SELECT DISTINCT date(completed_at, 'localtime') AS d, category
+    SELECT DISTINCT date(completed_at, '${SQL_TZ}') AS d, category
     FROM behaviors
     WHERE user_id = ?
       AND completed_at >= datetime('now', '-7 days')

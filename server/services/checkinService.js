@@ -1,21 +1,27 @@
 const { db } = require('../db');
+const { getTodayUTC8 } = require('../utils/time');
 
 /**
  * 计算用户当前连续签到天数
- * 从昨天往前逐日检查 checkins 表是否有记录，遇到断点停止
+ * 单次查询取最近365条记录，内存中判断连续性
  * @param {number} userId
  * @param {string} today - 格式 YYYY-MM-DD
  * @returns {number} 连续天数（不含今天）
  */
 function getStreak(userId, today) {
-  let streak = 0;
-  const checkDate = new Date(`${today}T00:00:00+08:00`);
+  const rows = db.prepare(
+    `SELECT checkin_date FROM checkins
+     WHERE user_id = ? AND checkin_date < ?
+     ORDER BY checkin_date DESC LIMIT 365`
+  ).all(userId, today);
 
-  while (true) {
-    checkDate.setDate(checkDate.getDate() - 1);
-    const dateStr = formatDate(checkDate);
-    const row = db.prepare('SELECT id FROM checkins WHERE user_id = ? AND checkin_date = ?').get(userId, dateStr);
-    if (row) {
+  let streak = 0;
+  // 从昨天开始，逐日比对
+  const expectedDate = new Date(`${today}T00:00:00+08:00`);
+  for (const row of rows) {
+    expectedDate.setDate(expectedDate.getDate() - 1);
+    const expectedStr = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, '0')}-${String(expectedDate.getDate()).padStart(2, '0')}`;
+    if (row.checkin_date === expectedStr) {
       streak++;
     } else {
       break;
@@ -110,17 +116,4 @@ function getCheckinStatus(userId) {
   };
 }
 
-/**
- * 获取当前 UTC+8 日期字符串
- */
-function getTodayUTC8() {
-  const now = new Date();
-  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  return formatDate(utc8);
-}
-
-function formatDate(d) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
-}
-
-module.exports = { doCheckin, getCheckinStatus, getTodayUTC8 };
+module.exports = { doCheckin, getCheckinStatus };

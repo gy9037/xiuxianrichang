@@ -1,48 +1,42 @@
 const express = require('express');
 const { db } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
+const behaviorConfig = require('../data/behaviors.json');
+const { getCurrentPeriodKey } = require('../utils/time');
+const { getUserGoalsWithProgress } = require('../services/behaviorGoalService');
 
 const router = express.Router();
 router.use(authMiddleware);
 
-function getCurrentPeriodKey() {
-  const now = new Date();
-  const utc8 = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  return `${utc8.getUTCFullYear()}-${String(utc8.getUTCMonth() + 1).padStart(2, '0')}`;
+const VALID_USER_STATUSES = new Set(['居家', '生病', '出差']);
+
+function normalizeUserStatus(status) {
+  return VALID_USER_STATUSES.has(status) ? status : '居家';
+}
+
+/**
+ * 获取用户可用的所有行为子类型集合（含自定义行为）
+ */
+function getAllValidSubTypes(familyId, userStatus) {
+  const validStatus = behaviorConfig.statuses.includes(userStatus) ? userStatus : '居家';
+  const subTypes = new Set();
+
+  for (const [, catConfig] of Object.entries(behaviorConfig.categories)) {
+    const behaviors = catConfig[validStatus] || catConfig['居家'] || [];
+    for (const b of behaviors) subTypes.add(b);
+  }
+
+  const customs = db.prepare(
+    'SELECT name FROM custom_behaviors WHERE family_id = ?'
+  ).all(familyId);
+  for (const c of customs) subTypes.add(c.name);
+
+  return subTypes;
 }
 
 // GET /api/behavior-goal/current — 获取当月所有目标及进度
 router.get('/current', (req, res) => {
-  const periodKey = getCurrentPeriodKey();
-  const goals = db.prepare(
-    'SELECT * FROM behavior_goals WHERE user_id = ? AND period_key = ?'
-  ).all(req.user.id, periodKey);
-
-  const monthStart = `${periodKey}-01`;
-  const counts = db.prepare(`
-    SELECT sub_type, COUNT(*) AS count
-    FROM behaviors
-    WHERE user_id = ?
-      AND date(completed_at, 'localtime') >= ?
-      AND strftime('%Y-%m', completed_at, 'localtime') = ?
-    GROUP BY sub_type
-  `).all(req.user.id, monthStart, periodKey);
-
-  const countMap = {};
-  for (const row of counts) {
-    countMap[row.sub_type] = row.count;
-  }
-
-  const result = goals.map(g => ({
-    id: g.id,
-    subType: g.sub_type,
-    targetCount: g.target_count,
-    currentCount: countMap[g.sub_type] || 0,
-    periodKey: g.period_key,
-    completed: (countMap[g.sub_type] || 0) >= g.target_count,
-  }));
-
-  res.json(result);
+  res.json(getUserGoalsWithProgress(req.user.id));
 });
 
 // POST /api/behavior-goal — 创建或更新月度目标
@@ -55,6 +49,14 @@ router.post('/', (req, res) => {
   const count = parseInt(target_count, 10);
   if (Number.isNaN(count) || count < 1 || count > 999) {
     return res.status(400).json({ error: '目标次数需在 1-999 之间' });
+  }
+
+  // 验证 sub_type 是否存在于用户可用的行为列表中
+  const userRow = db.prepare('SELECT status FROM users WHERE id = ?').get(req.user.id);
+  const userStatus = normalizeUserStatus(userRow?.status);
+  const validSubTypes = getAllValidSubTypes(req.user.family_id, userStatus);
+  if (!validSubTypes.has(sub_type)) {
+    return res.status(400).json({ error: '无效的行为类型，请从行为列表中选择' });
   }
 
   const periodKey = getCurrentPeriodKey();
