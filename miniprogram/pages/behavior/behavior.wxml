@@ -9,22 +9,10 @@
   <view wx:if="{{activeTab === 'report'}}">
 
     <!-- 快捷入口 -->
-    <view class="card" wx:if="{{lastBehavior || shortcuts.length > 0}}">
+    <view class="card" wx:if="{{step === 'category' && smartShortcuts.length > 0}}">
       <view class="card-title">快捷打卡</view>
-
-      <!-- 重复上次 -->
-      <view wx:if="{{lastBehavior}}" class="shortcut-last flex-between" bindtap="repeatLast">
-        <view class="flex-row" style="gap:8rpx;flex:1;min-width:0;">
-          <text class="text-dim">上次:</text>
-          <text class="text-bright">{{lastBehavior.sub_type}}</text>
-          <text class="text-dim">({{lastBehavior.category}})</text>
-        </view>
-        <text class="text-primary" style="font-size:26rpx;flex-shrink:0;margin-left:16rpx;">重复 →</text>
-      </view>
-
-      <!-- Top5 快捷 -->
-      <view class="shortcut-grid" wx:if="{{shortcuts.length > 0}}">
-        <button class="shortcut-btn {{item.pinned ? 'shortcut-pinned' : ''}}" wx:for="{{shortcuts}}" wx:key="index"
+      <view class="shortcut-row">
+        <view class="shortcut-btn {{item.pinned ? 'shortcut-pinned' : ''}}" wx:for="{{smartShortcuts}}" wx:key="index"
           bindtap="tapShortcut"
           bindlongpress="onShortcutLongPress"
           data-category="{{item.category}}"
@@ -32,9 +20,8 @@
           data-index="{{index}}"
           data-pinned="{{item.pinned}}">
           <view wx:if="{{item.pinned}}" class="pin-badge">★</view>
-          <text>{{item.sub_type}}</text>
-          <text class="text-dim shortcut-count">{{item.use_count}}次</text>
-        </button>
+          <text class="shortcut-text">{{item.sub_type}}</text>
+        </view>
       </view>
     </view>
 
@@ -48,54 +35,44 @@
       </view>
     </view>
 
-    <!-- 步骤1: 选择分类 -->
-    <view wx:if="{{step === 'category'}}">
-      <view class="card">
-        <view class="card-title">选择行为类型</view>
-        <view class="category-grid">
-          <button class="category-btn" wx:for="{{categoryList}}" wx:key="index"
-            bindtap="selectCategory" data-category="{{item}}">
-            {{item}}
-          </button>
+    <!-- 行为选择：分类 + 子类型两级联动 -->
+    <view wx:if="{{step === 'category' || step === 'subtype'}}" class="card">
+      <view class="card-title">选择行为类型</view>
+      <!-- 分类：始终可见可切换 -->
+      <view class="category-pills">
+        <view class="category-pill {{selectedCategory === item ? 'category-pill-active' : ''}}" wx:for="{{categoryList}}" wx:key="index"
+          hover-class="pill-hover"
+          bindtap="selectCategory" data-category="{{item}}">
+          {{item}}
         </view>
       </view>
-    </view>
 
-    <!-- 步骤2: 选择具体行为 -->
-    <view wx:if="{{step === 'subtype'}}">
-      <view class="card">
-        <view class="flex-between" style="margin-bottom: 16rpx;">
-          <view class="card-title" style="margin-bottom: 0;">{{selectedCategory}}</view>
-          <button class="btn btn-small btn-secondary" bindtap="goBack">返回</button>
+      <!-- 子类型：选中分类后展示 -->
+      <view wx:if="{{subtypeList.length > 0}}" class="subtype-grid">
+        <view class="subtype-pill" wx:for="{{subtypeList}}" wx:key="index"
+          hover-class="pill-hover"
+          bindtap="selectSubtype" data-subtype="{{item}}">
+          {{item}}
         </view>
-        <view class="subtype-grid">
-          <button class="subtype-btn" wx:for="{{subtypeList}}" wx:key="index"
-            bindtap="selectSubtype" data-subtype="{{item}}">
-            {{item}}
-          </button>
-          <button class="subtype-btn subtype-btn-custom" bindtap="showCustom">+ 自定义</button>
-        </view>
+        <view class="subtype-pill subtype-pill-custom" hover-class="pill-hover" bindtap="showCustom">+ 自定义</view>
       </view>
 
       <!-- 自定义行为输入 -->
-      <view class="card" wx:if="{{showCustomInput}}">
-        <view class="form-group">
-          <view class="form-label">自定义行为名称</view>
-          <input class="form-input" placeholder="输入行为名称" value="{{customName}}" bindinput="onCustomNameInput" />
-        </view>
-        <view class="flex-row" style="gap: 16rpx;">
-          <button class="btn btn-small btn-primary" style="flex:1;" bindtap="submitCustom">添加</button>
-          <button class="btn btn-small btn-secondary" style="flex:1;" bindtap="cancelCustom">取消</button>
+      <view wx:if="{{showCustomInput}}" style="margin-top:12rpx">
+        <view class="flex-row" style="gap: 12rpx;">
+          <input class="form-input" style="flex:1" placeholder="输入行为名称" value="{{customName}}" bindinput="onCustomNameInput" />
+          <button class="btn btn-small btn-primary" bindtap="submitCustom">添加</button>
+          <button class="btn btn-small btn-secondary" bindtap="cancelCustom">取消</button>
         </view>
       </view>
     </view>
 
-    <!-- 步骤3: 表单 (身体健康类) -->
+    <!-- 表单 (身体健康类需要填写强度等) -->
     <view wx:if="{{step === 'form'}}">
       <view class="card">
-        <view class="flex-between" style="margin-bottom: 16rpx;">
+        <view class="flex-between" style="margin-bottom: 12rpx;">
           <view class="card-title" style="margin-bottom: 0;">{{selectedCategory}} · {{selectedSubtype}}</view>
-          <button class="btn btn-small btn-secondary" bindtap="goBack">返回</button>
+          <text class="text-primary" style="font-size:24rpx" bindtap="goBack">重新选择</text>
         </view>
 
         <!-- 运动强度 (非早起的身体健康行为) -->

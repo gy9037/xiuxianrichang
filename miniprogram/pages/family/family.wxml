@@ -8,22 +8,39 @@
       <view class="card-title">家庭成员</view>
       <view wx:if="{{members.length === 0}}" class="empty-state">暂无成员</view>
       <block wx:else>
-        <view class="member-grid">
-          <view class="member-cell" wx:for="{{membersVisible}}" wx:key="id">
-            <view class="member-avatar-wrap">
-              <view class="member-avatar flex-center" style="background:{{item.avatarColor}};">
-                <text class="avatar-initial">{{item.initial}}</text>
+        <scroll-view class="member-scroll" scroll-x enable-flex>
+          <view class="member-scroll-inner">
+            <view class="member-cell" wx:for="{{members}}" wx:key="id">
+              <view class="member-avatar-wrap">
+                <view class="member-avatar flex-center" style="background:{{item.avatarColor}};">
+                  <text class="avatar-initial">{{item.initial}}</text>
+                </view>
+                <view class="member-status-dot" style="background:{{item.statusColor}};"></view>
               </view>
-              <view class="member-status-dot" style="background:{{item.statusColor}};"></view>
+              <text class="member-name">{{item.name}}</text>
+              <text class="member-realm realm-badge">{{item.realm_stage}}</text>
             </view>
-            <text class="member-name">{{item.name}}</text>
-            <text class="member-realm realm-badge">{{item.realm_stage}}</text>
           </view>
-        </view>
-        <view wx:if="{{membersExtra > 0}}" class="fold-action" bindtap="toggleMembers">
-          <text class="text-primary">{{membersCollapsed ? '+' + membersExtra + ' 查看全部' : '收起'}}</text>
-        </view>
+        </scroll-view>
       </block>
+    </view>
+
+    <!-- 擂台 + 报告入口 -->
+    <view class="flex-row" style="gap:12rpx;margin-bottom:20rpx">
+      <view class="card" bindtap="goToArena" style="flex:1;display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <view>
+          <text class="card-title" style="margin-bottom:0">擂台</text>
+          <text class="text-dim" style="font-size:22rpx;display:block;margin-top:2rpx">发起挑战</text>
+        </view>
+        <text class="text-dim" style="font-size:28rpx">></text>
+      </view>
+      <view class="card" bindtap="goToReport" style="flex:1;display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <view>
+          <text class="card-title" style="margin-bottom:0">报告</text>
+          <text class="text-dim" style="font-size:22rpx;display:block;margin-top:2rpx">修炼总结</text>
+        </view>
+        <text class="text-dim" style="font-size:28rpx">></text>
+      </view>
     </view>
 
     <!-- 最近动态 -->
@@ -119,13 +136,5 @@
       </view>
     </view>
 
-    <!-- 擂台入口 -->
-    <view class="card" bindtap="goToArena" style="display:flex;align-items:center;justify-content:space-between;">
-      <view>
-        <text class="card-title" style="margin-bottom:0">擂台</text>
-        <text class="text-dim" style="font-size:24rpx;display:block;margin-top:4rpx">发起挑战，一较高下</text>
-      </view>
-      <text class="text-dim" style="font-size:28rpx">></text>
-    </view>
   </block>
 </view>

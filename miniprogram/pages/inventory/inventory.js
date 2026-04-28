@@ -79,19 +79,21 @@ Page({
       const items = res.items || [];
       const grouped = res.grouped || {};
 
-      // 构建属性 tab 列表
-      const attrTabs = Object.keys(grouped).map(key => ({
-        key: key,
-        name: grouped[key].name,
-        count: grouped[key].items.length,
-      }));
+      // 构建属性 tab 列表，首位加"全部"
+      const totalCount = items.length;
+      const attrTabs = [{ key: 'all', name: '全部', count: totalCount }];
+      Object.keys(grouped).forEach(key => {
+        attrTabs.push({
+          key: key,
+          name: grouped[key].name,
+          count: grouped[key].items.length,
+        });
+      });
 
-      // 默认选中第一个属性
-      const activeAttr = attrTabs.length > 0
-        ? (this.data.activeAttr && attrTabs.some(t => t.key === this.data.activeAttr)
-          ? this.data.activeAttr
-          : attrTabs[0].key)
-        : '';
+      // 默认选中"全部"或保持当前选中
+      const activeAttr = this.data.activeAttr && attrTabs.some(t => t.key === this.data.activeAttr)
+        ? this.data.activeAttr
+        : 'all';
 
       this.setData({
         items: items,
@@ -135,22 +137,18 @@ Page({
   // ========== 道具列表与选中 ==========
 
   refreshDisplayItems() {
-    const { grouped, activeAttr } = this.data;
-    if (!activeAttr || !grouped[activeAttr]) {
-      this.setData({
-        displayItems: [],
-        allChecked: false,
-        selectedCount: 0,
-        selectedTotal: 0,
-        canSynth: false,
-        synthGain: 0,
-        synthWaste: 0,
-        synthProgressPct: 0,
-      });
-      return;
+    const { grouped, activeAttr, items } = this.data;
+
+    let raw;
+    if (activeAttr === 'all') {
+      // 全部模式：展示所有道具
+      raw = items;
+    } else if (activeAttr && grouped[activeAttr]) {
+      raw = grouped[activeAttr].items || [];
+    } else {
+      raw = [];
     }
 
-    const raw = grouped[activeAttr].items || [];
     const display = raw.map(item => ({
       id: item.id,
       name: item.name,
@@ -181,12 +179,41 @@ Page({
   },
 
   onToggleAll() {
-    const newVal = !this.data.allChecked;
-    const display = this.data.displayItems.map(item => {
-      item.checked = newVal;
-      return item;
-    });
-    this.setData({ displayItems: display, allChecked: newVal });
+    const { activeAttr, allChecked, displayItems } = this.data;
+
+    if (allChecked) {
+      // 取消全选
+      const display = displayItems.map(item => ({ ...item, checked: false }));
+      this.setData({ displayItems: display, allChecked: false });
+      this.updateSynthSummary();
+      return;
+    }
+
+    if (activeAttr === 'all') {
+      // 智能全选：按属性分组，只勾选总值 >= 10 的属性组
+      const attrTotals = {};
+      for (const item of displayItems) {
+        const attr = item.attribute_type;
+        attrTotals[attr] = (attrTotals[attr] || 0) + item.temp_value;
+      }
+      const qualifiedAttrs = new Set();
+      for (const [attr, total] of Object.entries(attrTotals)) {
+        if (total >= SYNTH_THRESHOLD) qualifiedAttrs.add(attr);
+      }
+      const display = displayItems.map(item => ({
+        ...item,
+        checked: qualifiedAttrs.has(item.attribute_type),
+      }));
+      const anyChecked = display.some(item => item.checked);
+      if (!anyChecked) {
+        wx.showToast({ title: '没有属性总值达到10点', icon: 'none' });
+      }
+      this.setData({ displayItems: display, allChecked: display.every(item => item.checked) });
+    } else {
+      // 单属性 tab：全选所有
+      const display = displayItems.map(item => ({ ...item, checked: true }));
+      this.setData({ displayItems: display, allChecked: true });
+    }
     this.updateSynthSummary();
   },
 
@@ -197,23 +224,58 @@ Page({
   },
 
   updateSynthSummary() {
-    const selected = this.data.displayItems.filter(item => item.checked);
+    const { displayItems, activeAttr } = this.data;
+    const selected = displayItems.filter(item => item.checked);
     const count = selected.length;
-    const total = selected.reduce((sum, item) => sum + item.temp_value, 0);
-    const gain = Math.floor(total / SYNTH_THRESHOLD);
-    const waste = total % SYNTH_THRESHOLD;
-    const canSynth = total >= SYNTH_THRESHOLD;
-    const synthProgressPct = Math.min(Math.round(((total % SYNTH_THRESHOLD) / SYNTH_THRESHOLD) * 100), 100);
-    const finalProgressPct = total >= SYNTH_THRESHOLD ? 100 : synthProgressPct;
 
-    this.setData({
-      selectedCount: count,
-      selectedTotal: total,
-      canSynth: canSynth,
-      synthGain: gain,
-      synthWaste: waste,
-      synthProgressPct: finalProgressPct,
-    });
+    if (activeAttr === 'all' && count > 0) {
+      // 全部模式：按属性分组计算
+      const attrGroups = {};
+      for (const item of selected) {
+        const attr = item.attribute_type;
+        if (!attrGroups[attr]) attrGroups[attr] = { total: 0, count: 0 };
+        attrGroups[attr].total += item.temp_value;
+        attrGroups[attr].count++;
+      }
+      let totalGain = 0;
+      let totalWaste = 0;
+      let totalValue = 0;
+      let canSynth = false;
+      for (const [, g] of Object.entries(attrGroups)) {
+        totalValue += g.total;
+        if (g.total >= SYNTH_THRESHOLD) {
+          totalGain += Math.floor(g.total / SYNTH_THRESHOLD);
+          totalWaste += g.total % SYNTH_THRESHOLD;
+          canSynth = true;
+        } else {
+          totalWaste += g.total;
+        }
+      }
+      this.setData({
+        selectedCount: count,
+        selectedTotal: totalValue,
+        canSynth,
+        synthGain: totalGain,
+        synthWaste: totalWaste,
+        synthProgressPct: canSynth ? 100 : 0,
+      });
+    } else {
+      // 单属性模式
+      const total = selected.reduce((sum, item) => sum + item.temp_value, 0);
+      const gain = Math.floor(total / SYNTH_THRESHOLD);
+      const waste = total % SYNTH_THRESHOLD;
+      const canSynth = total >= SYNTH_THRESHOLD;
+      const pct = canSynth ? 100 : Math.min(Math.round((total / SYNTH_THRESHOLD) * 100), 100);
+
+      this.setData({
+        selectedCount: count,
+        selectedTotal: total,
+        canSynth,
+        synthGain: gain,
+        synthWaste: waste,
+        synthProgressPct: pct,
+      });
+    }
   },
 
   // ========== Tab 切换 ==========

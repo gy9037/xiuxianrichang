@@ -2,6 +2,31 @@ const { db } = require('../db');
 const { getTodayUTC8, formatDate, SQL_TZ } = require('../utils/time');
 const { generateItem, CATEGORY_TO_ATTR } = require('./itemGen');
 
+// 悬赏任务描述模板替换
+const TEMPLATE_COLORS = ['红色', '橙色', '黄色', '绿色', '蓝色', '紫色', '白色', '粉色', '棕色'];
+const TEMPLATE_SHAPES = ['圆形', '三角形', '正方形', '长方形', '菱形', '五角星形', '椭圆形'];
+
+function resolveTemplates(text) {
+  return text
+    .replace(/\{\{number:(\d+)-(\d+)\}\}/g, (_, min, max) => {
+      return String(Math.floor(Math.random() * (Number(max) - Number(min) + 1)) + Number(min));
+    })
+    .replace(/\{\{color\}\}/g, () => {
+      return TEMPLATE_COLORS[Math.floor(Math.random() * TEMPLATE_COLORS.length)];
+    })
+    .replace(/\{\{shape\}\}/g, () => {
+      return TEMPLATE_SHAPES[Math.floor(Math.random() * TEMPLATE_SHAPES.length)];
+    });
+}
+
+// 系统悬赏任务随机掉落品质：良品30%、上品60%、极品10%
+function rollBountyQuality() {
+  const r = Math.random();
+  if (r < 0.10) return '极品';
+  if (r < 0.70) return '上品';
+  return '良品';
+}
+
 const QUEST_CATEGORY_TO_ATTR = {
   discover: 'perception',
   action: 'physique',
@@ -486,8 +511,9 @@ function settleQuest(questId) {
     if (quest.mode === 'cooperative') {
       if (completedUsers.length === challengers.length && completedUsers.length > 0) {
         for (const u of completedUsers) {
-          if (quest.type === 'system' && rewardItems.length > 0) {
-            for (const ri of rewardItems) generateRewardItem(u.user_id, quest.category, ri.quality);
+          if (quest.type === 'system') {
+            const quality = rollBountyQuality();
+            generateRewardItem(u.user_id, quest.category, quality);
           } else {
             const quality = getRewardQuality(quest.type, quest.created_at, quest.deadline);
             if (quality) generateRewardItem(u.user_id, quest.category, quality);
@@ -505,8 +531,8 @@ function settleQuest(questId) {
       for (let i = 0; i < ranked.length; i += 1) {
         const u = ranked[i];
         if (quest.type === 'system') {
-          const baseQuality = rewardItems[0]?.quality || '凡品';
-          generateRewardItem(u.user_id, quest.category, i === 0 ? upgradeQuality(baseQuality) : baseQuality);
+          const quality = rollBountyQuality();
+          generateRewardItem(u.user_id, quest.category, i === 0 ? upgradeQuality(quality) : quality);
         } else {
           const baseQuality = getRewardQuality(quest.type, quest.created_at, quest.deadline);
           if (baseQuality) generateRewardItem(u.user_id, quest.category, i === 0 ? upgradeQuality(baseQuality) : baseQuality);
@@ -578,15 +604,17 @@ function getDailySystemQuest(familyId, userId = null) {
   }
   if (!pool) return null;
 
+  const questTitle = resolveTemplates(pool.title);
+  const questDesc = resolveTemplates(pool.description || '');
   const attrType = QUEST_CATEGORY_TO_ATTR[pool.category] || 'perception';
-  const rewardItems = JSON.stringify([{ attribute_type: attrType, quality: pool.reward_quality || '凡品', count: 1 }]);
+  const rewardItems = JSON.stringify([{ attribute_type: attrType, quality: 'random', count: 1 }]);
   const deadline = `${today}T23:59:59`;
 
   const result = db.prepare(`
     INSERT INTO quests (family_id, creator_id, type, title, description, category,
       goal_type, goal_config, mode, reward_items, source_pool_id, deadline, status)
     VALUES (?, 0, 'system', ?, ?, ?, 'manual', '{}', 'cooperative', ?, ?, ?, 'active')
-  `).run(familyId, pool.title, pool.description, pool.category, rewardItems, pool.id, deadline);
+  `).run(familyId, questTitle, questDesc, pool.category, rewardItems, pool.id, deadline);
 
   if (userId) {
     db.prepare(`

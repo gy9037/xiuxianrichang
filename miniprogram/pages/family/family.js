@@ -26,15 +26,23 @@ function getInitial(name) {
 }
 
 function relativeTime(dateStr) {
+  if (!dateStr) return '';
   var now = Date.now();
-  var ts = new Date(dateStr).getTime();
+  // 服务端存的是 UTC 时间，显式加 Z 确保跨平台一致解析为 UTC
+  var normalized = dateStr.replace(' ', 'T');
+  if (normalized.indexOf('Z') === -1 && normalized.indexOf('+') === -1) {
+    normalized += 'Z';
+  }
+  var ts = new Date(normalized).getTime();
   var diff = now - ts;
   if (diff < 60000) return '刚刚';
   if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
   if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
   if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
-  var d = new Date(dateStr);
-  return (d.getMonth() + 1) + '/' + d.getDate();
+  var d = new Date(normalized);
+  // 显示时转为 UTC+8
+  var utc8 = new Date(d.getTime() + 8 * 3600000);
+  return (utc8.getUTCMonth() + 1) + '/' + utc8.getUTCDate();
 }
 
 function prepareMember(m) {
@@ -290,6 +298,10 @@ Page({
 
   goToArena() {
     wx.navigateTo({ url: '/pages/arena/arena' });
+  },
+
+  goToReport() {
+    wx.navigateTo({ url: '/pages/report/report' });
   },
 
   goQuests: function () {

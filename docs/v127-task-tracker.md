@@ -16,7 +16,7 @@
 | 第四批 Codex 指令生成（数据报告） | 已完成 | 无 |
 | 统一任务系统技术方案编写 | 已完成 | 无 |
 | 擂台系统技术方案编写 | 已完成 | 无 |
-| 节气事件系统策划案重写 | 进行中 | 无 |
+| V1.2.7 发版后修补 | 已完成 | 无 |
 | 节气事件系统技术方案编写 | 待开始 | 节气策划案重写完成并审阅通过 |
 | 节气事件系统 Codex 指令生成 | 待开始 | 节气技术方案完成并审阅通过 |
 | 统一任务系统 Codex 指令生成 | 已完成 | 统一任务系统技术方案完成并审阅通过 |
@@ -139,3 +139,26 @@
 - 验收方式：代码审查（12个检查点全部通过）+ API 实测（系统悬赏生成、自我悬赏创建、挑战任务完整流程、定时任务挂载）
 - 关键确认：创建→投票(approve:bool)→激活→提交(text+photoUrls)→判定(targetUserId+verdict)→完成全流程通过；joinAsChallenger 角色分配正确；系统悬赏每日自动生成；定时任务 10 分钟间隔正常启动
 - 遗留问题：无
+
+### V1.2.7 发版后修补（2026-04-27）
+
+- 状态：已完成
+- 改动文件：
+  - miniprogram/app.wxss（全局基础值收紧：card/btn-small/form-input/tab-bar/modal/成员布局改横向滚动）
+  - miniprogram/app.json（添加 camera/writePhotosAlbum 权限声明）
+  - miniprogram/pages/home/（Hero 删除融入 HUD、FAB 改横排按钮条、推荐+悬赏融合、趋势图下移）
+  - miniprogram/pages/behavior/（智能推荐快捷打卡、分类+子类型两级联动五环式布局、formatTime 时区修复）
+  - miniprogram/pages/family/（成员横向滚动、擂台+报告并排入口、relativeTime 时区修复）
+  - miniprogram/pages/inventory/（专用 tab、全部 tab + 智能全选、去掉引导栏）
+  - miniprogram/pages/wish/（标签+星级合并、战斗结果页 card 合并、filter-chip 收紧）
+  - miniprogram/pages/arena/（弹窗加滚动、操作按钮并排、chooseMedia + fail 回调）
+  - miniprogram/pages/quest-detail/（chooseMedia fail 回调）
+  - miniprogram/pages/quest-create/（type-btn 收紧）
+  - miniprogram/pages/report/（card 合并为概览卡片）
+  - server/data/behaviors.json（社交互助删除"主动分担""主动道歉"）
+  - server/data/quest-pool-seed.json（悬赏任务池 85→71 条、模板变量）
+  - server/services/questService.js（模板替换引擎、随机掉落：良品30%/上品60%/极品10%）
+  - server/db.js（quest pool 启动时清空重建）
+  - scripts/db-patch.sql（新建，灵石调整 + 删除用户）
+- 关键决策：UI 全局收紧（card 32→24、btn-small 88→64）；首页 Hero 融入 HUD + FAB 改横排；行为页两级联动五环式布局；背包页全部 tab + 智能全选；悬赏奖励改随机掉落；quest pool 启动时自动重建
+- 遗留问题：R2 环境变量待 Dokploy 配置；自定义行为删除/隐藏功能待新 session 讨论；db-patch.sql 待生产环境执行

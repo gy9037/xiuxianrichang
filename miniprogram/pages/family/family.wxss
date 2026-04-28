@@ -16,10 +16,10 @@
 /* 折叠操作 */
 .fold-action {
   text-align: center;
-  padding: 16rpx 0;
-  margin-top: 12rpx;
+  padding: 12rpx 0;
+  margin-top: 8rpx;
   font-size: 26rpx;
-  min-height: 88rpx;
+  min-height: 64rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -33,17 +33,19 @@
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: 24rpx;
+  gap: 0;
 }
 
 .feed-item {
-  padding-bottom: 24rpx;
+  padding-bottom: 16rpx;
   border-bottom: 1rpx solid #334155;
+  margin-bottom: 16rpx;
 }
 
 .feed-item:last-child {
   border-bottom: none;
   padding-bottom: 0;
+  margin-bottom: 0;
 }
 
 .feed-header {
@@ -121,12 +123,12 @@
   flex-direction: row;
   align-items: center;
   gap: 4rpx;
-  padding: 12rpx 16rpx;
+  padding: 8rpx 14rpx;
   border-radius: 24rpx;
   background: #252540;
   font-size: 24rpx;
   color: #94a3b8;
-  min-height: 72rpx;
+  min-height: 56rpx;
 }
 
 .reaction-btn:active {

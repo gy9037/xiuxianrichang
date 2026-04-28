@@ -7,7 +7,7 @@
 .qc-type-btn {
   flex: 1;
   text-align: center;
-  padding: 20rpx 0;
+  padding: 14rpx 0;
   border-radius: 12rpx;
   font-size: 28rpx;
   font-weight: 500;

@@ -10,6 +10,28 @@ const ATTR_NAMES = {
   perception: '神识',
 };
 
+// 时间段推荐映射：sub_type 关键词 → 适合的时间段
+const TIME_RECOMMEND = [
+  { hours: [5,6,7,8], keywords: ['早起'] },
+  { hours: [6,7,8,9,14,15,16,17], keywords: ['上肢','核心','胸背肩','下肢','综合/有氧','轻度拉伸'] },
+  { hours: [9,10,11,14,15,16], keywords: ['读书','网课学习','知识分享'] },
+  { hours: [11,12,17,18], keywords: ['做饭','买菜'] },
+  { hours: [12,13,18,19,20], keywords: ['洗碗'] },
+  { hours: [13,14,15,16], keywords: ['打扫卫生','整理房间'] },
+  { hours: [21,22,23], keywords: ['冥想','读书','喝够水'] },
+];
+
+function getTimeRecommendedTypes() {
+  const h = new Date().getHours();
+  const matched = new Set();
+  for (const rule of TIME_RECOMMEND) {
+    if (rule.hours.includes(h)) {
+      for (const kw of rule.keywords) matched.add(kw);
+    }
+  }
+  return matched;
+}
+
 Page({
   data: {
     // Tab
@@ -30,11 +52,10 @@ Page({
     submitting: false,
 
     // 快捷入口
-    shortcuts: [],
-    lastBehavior: null,
+    smartShortcuts: [],
+    pinnedBehaviors: [],
     showPinMenu: false,
     pinMenuTarget: null,
-    pinnedBehaviors: [],
 
     // 最近记录
     recentList: [],
@@ -104,7 +125,6 @@ Page({
   loadReportData() {
     this.loadCategories();
     this.loadShortcuts();
-    this.loadLastBehavior();
     this.loadRecentList();
     if (this.data.showGoalPanel) this.loadMonthlyGoals();
   },
@@ -118,18 +138,52 @@ Page({
 
   loadShortcuts() {
     api.get('/behavior/shortcuts').then(data => {
-      const shortcuts = data || [];
-      const pinnedBehaviors = shortcuts.filter(s => s.pinned).map(s => ({
+      const allShortcuts = data || [];
+      const pinnedBehaviors = allShortcuts.filter(s => s.pinned).map(s => ({
         category: s.category,
         sub_type: s.sub_type,
       }));
-      this.setData({ shortcuts, pinnedBehaviors });
-    }).catch(() => {});
-  },
 
-  loadLastBehavior() {
-    api.get('/behavior/last').then(data => {
-      this.setData({ lastBehavior: data });
+      // 构建智能推荐列表：置顶优先，剩余用时间段推荐填充，总共最多3个
+      const smart = [];
+      const seen = new Set();
+
+      // 1. 置顶的始终显示（最多2个）
+      for (const s of allShortcuts) {
+        if (s.pinned && smart.length < 2) {
+          smart.push({ ...s, reason: '置顶' });
+          seen.add(`${s.category}|${s.sub_type}`);
+        }
+      }
+
+      // 2. 时间段推荐填充剩余位置
+      const timeTypes = getTimeRecommendedTypes();
+      if (timeTypes.size > 0 && smart.length < 3) {
+        // 从用户历史行为中找匹配当前时间段的
+        const timeMatched = allShortcuts.filter(s => {
+          const key = `${s.category}|${s.sub_type}`;
+          return !seen.has(key) && timeTypes.has(s.sub_type);
+        });
+        for (const s of timeMatched) {
+          if (smart.length >= 3) break;
+          smart.push({ ...s, reason: '推荐' });
+          seen.add(`${s.category}|${s.sub_type}`);
+        }
+      }
+
+      // 3. 如果还不够3个，用高频行为补充
+      if (smart.length < 3) {
+        for (const s of allShortcuts) {
+          if (smart.length >= 3) break;
+          const key = `${s.category}|${s.sub_type}`;
+          if (!seen.has(key)) {
+            smart.push({ ...s, reason: '常用' });
+            seen.add(key);
+          }
+        }
+      }
+
+      this.setData({ smartShortcuts: smart, pinnedBehaviors });
     }).catch(() => {});
   },
 
@@ -255,8 +309,10 @@ Page({
     this.setData({
       selectedCategory: category,
       subtypeList: subtypes,
-      step: 'subtype',
+      step: 'category',
       isHealthCategory: category === '身体健康',
+      showCustomInput: false,
+      customName: '',
     });
   },
 
@@ -435,12 +491,14 @@ Page({
   },
 
   goBack() {
-    const { step } = this.data;
-    if (step === 'form') {
-      this.setData({ step: 'subtype', selectedSubtype: '', description: '', intensity: '', intensityIndex: -1 });
-    } else if (step === 'subtype') {
-      this.setData({ step: 'category', selectedCategory: '', subtypeList: [] });
-    }
+    // 从表单回到分类选择，保留已选分类和子类型列表
+    this.setData({
+      step: 'category',
+      selectedSubtype: '',
+      description: '',
+      intensity: '',
+      intensityIndex: -1,
+    });
   },
 
   // ========== 最近记录 ==========
@@ -633,7 +691,14 @@ Page({
 
   formatTime(isoStr) {
     if (!isoStr) return '';
-    const d = new Date(isoStr);
-    return this.padZero(d.getMonth() + 1) + '-' + this.padZero(d.getDate()) + ' ' + this.padZero(d.getHours()) + ':' + this.padZero(d.getMinutes());
+    // 服务端存的是 UTC，显式加 Z 确保跨平台一致解析
+    let normalized = isoStr.replace(' ', 'T');
+    if (normalized.indexOf('Z') === -1 && normalized.indexOf('+') === -1) {
+      normalized += 'Z';
+    }
+    const d = new Date(normalized);
+    // 转为 UTC+8 显示
+    const utc8 = new Date(d.getTime() + 8 * 3600000);
+    return this.padZero(utc8.getUTCMonth() + 1) + '-' + this.padZero(utc8.getUTCDate()) + ' ' + this.padZero(utc8.getUTCHours()) + ':' + this.padZero(utc8.getUTCMinutes());
   },
 });

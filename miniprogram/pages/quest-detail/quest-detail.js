@@ -198,6 +198,11 @@ Page({
         }
         that.setData({ submitPhotos: newPhotos });
       },
+      fail: function (err) {
+        if (err.errMsg && err.errMsg.indexOf('cancel') === -1) {
+          wx.showToast({ title: '无法访问相机或相册，请检查权限', icon: 'none' });
+        }
+      },
     });
   },
 

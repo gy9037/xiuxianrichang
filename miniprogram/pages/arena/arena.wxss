@@ -9,10 +9,10 @@
 
 .arena-fab {
   position: fixed;
-  right: 40rpx;
-  bottom: calc(40rpx + env(safe-area-inset-bottom));
-  width: 96rpx;
-  height: 96rpx;
+  right: 32rpx;
+  bottom: calc(32rpx + env(safe-area-inset-bottom));
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
   background: #8b5cf6;
   display: flex;

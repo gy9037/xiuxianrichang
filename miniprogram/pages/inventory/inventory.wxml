@@ -1,13 +1,12 @@
 <view class="page-container">
 
   <!-- 顶部：主 Tab + 炼化规则 -->
-  <view class="flex-between" style="margin-bottom: 32rpx;">
-    <view class="tab-bar" style="flex: 1; margin-bottom: 0; margin-right: 24rpx;">
-      <view class="tab-bar-item {{activeSection === 'items' ? 'active' : ''}}"
-            data-section="items" bindtap="onSwitchSection">道具</view>
-      <view class="tab-bar-item {{activeSection === 'rewards' ? 'active' : ''}}"
-            data-section="rewards" bindtap="onSwitchSection">奖励</view>
-    </view>
+  <view class="inv-header">
+    <view class="inv-tab {{activeSection === 'items' ? 'inv-tab-active' : ''}}"
+          data-section="items" bindtap="onSwitchSection">道具</view>
+    <view class="inv-tab {{activeSection === 'rewards' ? 'inv-tab-active' : ''}}"
+          data-section="rewards" bindtap="onSwitchSection">奖励</view>
+    <view style="flex:1"></view>
     <view class="rules-link" bindtap="onShowRules">炼化规则</view>
   </view>
 
@@ -36,17 +35,18 @@
       </scroll-view>
 
       <!-- 全选按钮 -->
-      <view class="flex-between" style="margin-bottom: 16rpx;">
+      <view class="flex-between" style="margin-bottom: 12rpx;">
         <view class="text-dim" style="font-size: 24rpx;">
           当前分类 {{displayItems.length}} 件
         </view>
         <view class="select-all-btn" bindtap="onToggleAll">
-          {{allChecked ? '取消全选' : '全选'}}
+          {{allChecked ? '取消全选' : activeAttr === 'all' ? '智能全选' : '全选'}}
         </view>
       </view>
 
       <!-- 道具列表 -->
-      <view wx:for="{{displayItems}}" wx:key="id"
+      <view style="padding-bottom:{{selectedCount > 0 ? '140rpx' : '20rpx'}}">
+        <view wx:for="{{displayItems}}" wx:key="id"
             class="item-row {{item.checked ? 'item-row-checked' : ''}} item-quality-{{item.qualityKey}}"
             data-index="{{index}}" bindtap="onToggleItem">
         <view class="item-checkbox">
@@ -65,9 +65,6 @@
         </view>
       </view>
 
-      <!-- 未选中时的炼化引导 -->
-      <view wx:if="{{selectedCount === 0 && items.length > 0}}" class="synth-hint-bar">
-        <text class="text-dim" style="font-size:24rpx">选择同属性道具 → 累计 10 点即可炼化</text>
       </view>
 
       <!-- 合成摘要栏 -->
@@ -76,17 +73,10 @@
           <view class="synth-progress-bar-bg">
             <view class="synth-progress-bar-fill" style="width:{{synthProgressPct}}%"></view>
           </view>
-          <view class="text-bright" style="font-size: 28rpx;">
-            已选 {{selectedCount}} 件 · 总值 {{selectedTotal}}
-          </view>
-          <view wx:if="{{canSynth}}" class="text-green" style="font-size: 24rpx;">
-            可合成 +{{synthGain}} 永久属性
-          </view>
-          <view wx:else class="text-dim" style="font-size: 24rpx;">
-            不足{{10}}点无法合成
-          </view>
-          <view wx:if="{{canSynth && synthWaste > 0}}" class="text-gold" style="font-size: 24rpx;">
-            将浪费 {{synthWaste}} 点
+          <view class="flex-between">
+            <text class="text-bright" style="font-size:26rpx">已选 {{selectedCount}} 件 · 总值 {{selectedTotal}}</text>
+            <text wx:if="{{canSynth}}" class="text-green" style="font-size:24rpx">+{{synthGain}} 永久属性{{synthWaste > 0 ? ' (浪费' + synthWaste + '点)' : ''}}</text>
+            <text wx:else class="text-dim" style="font-size:24rpx">不足10点</text>
           </view>
         </view>
         <button class="btn btn-primary btn-small synth-btn"
@@ -128,7 +118,7 @@
     </view>
 
     <!-- 已兑现 -->
-    <view wx:if="{{redeemedRewards.length > 0}}" style="margin-top: 32rpx;">
+    <view wx:if="{{redeemedRewards.length > 0}}" style="margin-top: 20rpx;">
       <view class="card-title" style="color: #94a3b8;">已兑现</view>
       <view wx:for="{{redeemedRewards}}" wx:key="id" class="card card-tight" style="opacity: 0.7;">
         <view class="text-bright" style="font-weight: 600; margin-bottom: 4rpx;">{{item.name}}</view>
@@ -159,7 +149,7 @@
         </view>
         <view class="rules-item">5. 合成后道具消失，永久属性不可逆</view>
       </view>
-      <button class="btn btn-primary" style="margin-top: 32rpx;" bindtap="onCloseRules">知道了</button>
+      <button class="btn btn-primary" style="margin-top: 24rpx;" bindtap="onCloseRules">知道了</button>
     </view>
   </view>
 

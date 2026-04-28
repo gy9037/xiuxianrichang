@@ -497,6 +497,10 @@ Page({
     wx.navigateTo({ url: '/pages/report/report' });
   },
 
+  goToArena() {
+    wx.navigateTo({ url: '/pages/arena/arena' });
+  },
+
   logout() {
     wx.showModal({
       title: '确认退出',

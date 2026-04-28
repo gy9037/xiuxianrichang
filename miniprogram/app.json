@@ -47,6 +47,14 @@
       }
     ]
   },
+  "permission": {
+    "scope.camera": {
+      "desc": "用于拍照提交任务证据"
+    },
+    "scope.writePhotosAlbum": {
+      "desc": "用于保存报告图卡到相册"
+    }
+  },
   "style": "v2",
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents"

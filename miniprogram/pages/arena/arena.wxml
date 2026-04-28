@@ -103,7 +103,7 @@
     </view>
 
     <view wx:if="{{arena.status === 'active'}}">
-      <view wx:if="{{!myParticipant}}" style="margin-bottom:32rpx">
+      <view wx:if="{{!myParticipant}}" style="margin-bottom:16rpx">
         <button class="btn btn-primary" bindtap="joinArena">加入擂台</button>
       </view>
 
@@ -146,9 +146,11 @@
       </view>
 
       <view wx:if="{{isCreator}}" style="margin-top:16rpx">
-        <button wx:if="{{arena.type === 'quiz'}}" class="btn btn-primary" style="margin-bottom:16rpx" bindtap="judgeSubmissions">确认判定</button>
-        <button class="btn btn-primary" style="margin-bottom:16rpx" bindtap="settleArena">结算擂台</button>
-        <button class="btn btn-secondary" bindtap="cancelArena">取消擂台</button>
+        <button wx:if="{{arena.type === 'quiz'}}" class="btn btn-primary" style="margin-bottom:12rpx" bindtap="judgeSubmissions">确认判定</button>
+        <view class="flex-row" style="gap:12rpx">
+          <button class="btn btn-primary" style="flex:1" bindtap="settleArena">结算擂台</button>
+          <button class="btn btn-secondary" style="flex:1" bindtap="cancelArena">取消擂台</button>
+        </view>
       </view>
     </view>
 
@@ -158,8 +160,8 @@
   </view>
 
   <view wx:if="{{showCreateForm}}" class="modal-mask" catchtap="hideCreate">
-    <view class="modal-content" catchtap="">
-      <view class="card-title" style="margin-bottom:24rpx">发起擂台</view>
+    <view class="modal-content" catchtap="" style="max-height:80vh;overflow-y:auto">
+      <view class="card-title" style="margin-bottom:16rpx">发起擂台</view>
 
       <view class="form-group">
         <text class="form-label">类型</text>

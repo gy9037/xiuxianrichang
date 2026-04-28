@@ -212,12 +212,18 @@ Page({
 
   chooseEvidence() {
     const that = this;
-    wx.chooseImage({
+    wx.chooseMedia({
       count: 1,
+      mediaType: ['image'],
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
       success(res) {
-        that.setData({ evidenceImage: res.tempFilePaths[0] });
+        that.setData({ evidenceImage: res.tempFiles[0].tempFilePath });
+      },
+      fail(err) {
+        if (err.errMsg && err.errMsg.indexOf('cancel') === -1) {
+          wx.showToast({ title: '无法访问相机或相册，请检查权限', icon: 'none' });
+        }
       },
     });
   },

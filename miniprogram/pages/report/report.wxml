@@ -17,9 +17,10 @@
       <view
         wx:for="{{reports}}"
         wx:key="id"
-        class="card report-list-item"
-        bindtap="viewReport"
-        data-id="{{item.id}}"
+      class="card report-list-item"
+      bindtap="viewReport"
+      data-id="{{item.id}}"
+      style="padding:16rpx 24rpx"
       >
         <view class="flex-between">
           <view class="flex-row" style="gap:12rpx">
@@ -52,7 +53,7 @@
         </view>
       </view>
 
-      <!-- 修炼天数 + 活跃度 -->
+      <!-- 修炼概览：天数 + 活跃度 + 最长坚持 + 道具收获 + 境界 -->
       <view class="card">
         <view class="flex-between">
           <view>
@@ -69,21 +70,63 @@
             </view>
           </view>
         </view>
-      </view>
 
-      <!-- 最佳月份（季报/年报） -->
-      <view class="card" wx:if="{{currentReport.data.bestMonth}}">
-        <text class="text-dim" style="font-size:24rpx">最强月份</text>
-        <view style="margin-top:8rpx">
-          <text class="text-bright" style="font-size:30rpx">{{currentReport.data.bestMonth.month}}月</text>
-          <text class="text-dim" style="font-size:24rpx;margin-left:8rpx">（{{currentReport.data.bestMonth.activeDays}}天活跃）</text>
+        <!-- 最佳月份（季报/年报） -->
+        <view wx:if="{{currentReport.data.bestMonth}}" style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+          <text class="text-dim" style="font-size:24rpx">最强月份</text>
+          <view style="margin-top:4rpx">
+            <text class="text-bright" style="font-size:28rpx">{{currentReport.data.bestMonth.month}}月</text>
+            <text class="text-dim" style="font-size:24rpx;margin-left:8rpx">（{{currentReport.data.bestMonth.activeDays}}天活跃）</text>
+          </view>
+        </view>
+
+        <!-- 最长坚持 -->
+        <view wx:if="{{currentReport.data.bestStreak.days > 0}}" style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+          <text class="text-dim" style="font-size:24rpx">最长坚持</text>
+          <view style="margin-top:4rpx">
+            <text class="text-bright" style="font-size:28rpx">{{currentReport.data.bestStreak.subType}}</text>
+            <text class="text-dim" style="font-size:24rpx;margin-left:8rpx">连续 {{currentReport.data.bestStreak.days}} 天</text>
+          </view>
+        </view>
+
+        <!-- 道具收获 -->
+        <view style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+          <text class="text-dim" style="font-size:24rpx">道具收获</text>
+          <view style="margin-top:4rpx">
+            <text class="text-bright" style="font-size:28rpx">共 {{currentReport.data.itemStats.total}} 件</text>
+          </view>
+          <view class="flex-row" style="gap:16rpx;margin-top:4rpx;flex-wrap:wrap">
+            <text
+              wx:for="{{itemQualityDisplay}}"
+              wx:key="quality"
+              class="{{item.colorClass}}"
+              style="font-size:24rpx"
+            >{{item.quality}} {{item.count}}</text>
+          </view>
+        </view>
+
+        <!-- Boss 战绩（季报/年报） -->
+        <view wx:if="{{currentReport.data.bossStats && currentReport.data.bossStats.total > 0}}" style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+          <text class="text-dim" style="font-size:24rpx">Boss 战绩</text>
+          <view style="margin-top:4rpx">
+            <text class="text-bright" style="font-size:28rpx">挑战 {{currentReport.data.bossStats.total}} 次</text>
+            <text class="text-dim" style="font-size:24rpx;margin-left:12rpx">胜率 {{currentReport.data.bossStats.winRate}}%</text>
+          </view>
+        </view>
+
+        <!-- 境界 -->
+        <view style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+          <text class="text-dim" style="font-size:24rpx">当前境界</text>
+          <view style="margin-top:4rpx">
+            <text class="text-gold" style="font-size:28rpx">{{currentReport.data.realmStage}}</text>
+          </view>
         </view>
       </view>
 
       <!-- 五属性成长 -->
       <view class="card">
         <text class="card-title">属性成长</text>
-        <view wx:for="{{attrDisplay}}" wx:key="key" style="margin-bottom:16rpx">
+        <view wx:for="{{attrDisplay}}" wx:key="key" style="margin-bottom:12rpx">
           <view class="flex-between" style="margin-bottom:4rpx">
             <text class="text-bright" style="font-size:26rpx">{{item.name}}</text>
             <text class="text-gold" style="font-size:26rpx">+{{item.value}}</text>
@@ -91,48 +134,6 @@
           <view class="attr-bar-bg">
             <view class="attr-bar-fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
           </view>
-        </view>
-      </view>
-
-      <!-- 最长坚持 -->
-      <view class="card" wx:if="{{currentReport.data.bestStreak.days > 0}}">
-        <text class="text-dim" style="font-size:24rpx">最长坚持</text>
-        <view style="margin-top:8rpx">
-          <text class="text-bright" style="font-size:30rpx">{{currentReport.data.bestStreak.subType}}</text>
-          <text class="text-dim" style="font-size:24rpx;margin-left:8rpx">连续 {{currentReport.data.bestStreak.days}} 天</text>
-        </view>
-      </view>
-
-      <!-- 道具收获 -->
-      <view class="card">
-        <text class="text-dim" style="font-size:24rpx">道具收获</text>
-        <view style="margin-top:8rpx">
-          <text class="text-bright" style="font-size:30rpx">共 {{currentReport.data.itemStats.total}} 件</text>
-        </view>
-        <view class="flex-row" style="gap:16rpx;margin-top:8rpx;flex-wrap:wrap">
-          <text
-            wx:for="{{itemQualityDisplay}}"
-            wx:key="quality"
-            class="{{item.colorClass}}"
-            style="font-size:24rpx"
-          >{{item.quality}} {{item.count}}</text>
-        </view>
-      </view>
-
-      <!-- Boss 战绩（季报/年报） -->
-      <view class="card" wx:if="{{currentReport.data.bossStats && currentReport.data.bossStats.total > 0}}">
-        <text class="text-dim" style="font-size:24rpx">Boss 战绩</text>
-        <view style="margin-top:8rpx">
-          <text class="text-bright" style="font-size:30rpx">挑战 {{currentReport.data.bossStats.total}} 次</text>
-          <text class="text-dim" style="font-size:24rpx;margin-left:12rpx">胜率 {{currentReport.data.bossStats.winRate}}%</text>
-        </view>
-      </view>
-
-      <!-- 境界 -->
-      <view class="card">
-        <text class="text-dim" style="font-size:24rpx">当前境界</text>
-        <view style="margin-top:8rpx">
-          <text class="text-gold" style="font-size:30rpx">{{currentReport.data.realmStage}}</text>
         </view>
       </view>
 
@@ -153,7 +154,7 @@
     </view>
 
     <!-- 操作按钮 -->
-    <view style="display:flex;gap:16rpx;margin-top:32rpx">
+    <view style="display:flex;gap:16rpx;margin-top:20rpx">
       <button class="btn btn-secondary" style="flex:1" bindtap="toggleView">
         {{canvasReady ? '查看文字版' : '查看图卡'}}
       </button>

@@ -3,7 +3,7 @@
   <!-- ==================== 列表视图 ==================== -->
   <block wx:if="{{view === 'list'}}">
     <!-- 标题栏 -->
-    <view class="flex-between" style="margin-bottom: 32rpx;">
+    <view class="flex-between" style="margin-bottom: 20rpx;">
       <view style="font-size: 40rpx; font-weight: 700; color: #f8fafc;">愿望池</view>
       <button class="btn btn-primary btn-small" bindtap="goCreate">许愿</button>
     </view>
@@ -65,17 +65,17 @@
       <!-- 待挑战愿望列表 -->
       <block wx:if="{{pendingWishes.length > 0}}">
         <view wx:for="{{pendingWishes}}" wx:key="id" class="card">
-          <!-- 标签行 -->
-          <view class="flex-row" style="gap: 12rpx; margin-bottom: 12rpx;">
-            <view class="tag" style="background:{{item.type === '团队' ? 'rgba(59,130,246,0.15)' : '#252540'}};color:{{item.type === '团队' ? '#60a5fa' : '#94a3b8'}};">{{item.type}}</view>
-            <view class="tag" style="background:{{item.statusColor}};color:#fff;">{{item.statusLabel}}</view>
-          </view>
-
-          <!-- 难度星级 -->
-          <view class="flex-row" style="margin-bottom: 8rpx;">
-            <view wx:for="{{item.stars}}" wx:for-item="star" wx:key="index" style="font-size: 28rpx; margin-right: 4rpx;">
-              <text wx:if="{{star.filled}}" style="color: #f59e0b;">★</text>
-              <text wx:else style="color: #334155;">★</text>
+          <!-- 标签行 + 难度星级 -->
+          <view class="flex-between" style="margin-bottom: 8rpx;">
+            <view class="flex-row" style="gap: 12rpx;">
+              <view class="tag" style="background:{{item.type === '团队' ? 'rgba(59,130,246,0.15)' : '#252540'}};color:{{item.type === '团队' ? '#60a5fa' : '#94a3b8'}};">{{item.type}}</view>
+              <view class="tag" style="background:{{item.statusColor}};color:#fff;">{{item.statusLabel}}</view>
+            </view>
+            <view class="flex-row">
+              <view wx:for="{{item.stars}}" wx:for-item="star" wx:key="index" style="font-size: 24rpx; margin-right: 2rpx;">
+                <text wx:if="{{star.filled}}" style="color: #f59e0b;">★</text>
+                <text wx:else style="color: #334155;">★</text>
+              </view>
             </view>
           </view>
 
@@ -86,17 +86,17 @@
           <view wx:if="{{item.description}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 12rpx;">{{item.description}}</view>
 
           <!-- 奖励 -->
-          <view class="flex-row" style="margin-bottom: 12rpx;">
+          <view class="flex-row" style="margin-bottom: 8rpx;">
             <text class="text-gold" style="font-size: 26rpx;">🎁 {{item.reward_description}}</text>
           </view>
 
           <!-- Boss 预估战力 -->
-          <view wx:if="{{item.bossMin > 0}}" class="text-dim" style="font-size: 24rpx; margin-bottom: 12rpx;">
+          <view wx:if="{{item.bossMin > 0}}" class="text-dim" style="font-size: 24rpx; margin-bottom: 8rpx;">
             Boss 预估战力：{{item.bossMin}} ~ {{item.bossMax}}
           </view>
 
           <!-- 团队进度 -->
-          <view wx:if="{{item.isTeam && item.teamTotal > 0}}" style="margin-bottom: 12rpx;">
+          <view wx:if="{{item.isTeam && item.teamTotal > 0}}" style="margin-bottom: 8rpx;">
             <view class="text-dim" style="font-size: 24rpx; margin-bottom: 8rpx;">团队进度：{{item.teamDone}}/{{item.teamTotal}}</view>
             <view class="flex-row" style="flex-wrap: wrap; gap: 8rpx;">
               <view wx:for="{{item.teamProgress}}" wx:for-item="member" wx:key="id"
@@ -144,7 +144,7 @@
   <block wx:elif="{{view === 'create'}}">
     <!-- 标题栏 -->
     <view class="flex-row" style="margin-bottom: 32rpx;">
-      <view class="text-dim" style="margin-right: 16rpx; font-size: 26rpx; min-height: 88rpx; display: flex; align-items: center;" bindtap="backToList">← 返回</view>
+      <view class="text-dim" style="margin-right: 16rpx; font-size: 26rpx; min-height: 64rpx; display: flex; align-items: center;" bindtap="backToList">← 返回</view>
       <view style="font-size: 40rpx; font-weight: 700; color: #f8fafc;">许愿</view>
     </view>
 
@@ -207,8 +207,8 @@
   <!-- ==================== Boss 战斗视图 ==================== -->
   <block wx:elif="{{view === 'battle'}}">
     <!-- 标题栏 -->
-    <view class="flex-row" style="margin-bottom: 32rpx;">
-      <view class="text-dim" style="margin-right: 16rpx; font-size: 26rpx; min-height: 88rpx; display: flex; align-items: center;" bindtap="backToList">← 返回</view>
+    <view class="flex-row" style="margin-bottom: 20rpx;">
+      <view class="text-dim" style="margin-right: 16rpx; font-size: 26rpx; min-height: 64rpx; display: flex; align-items: center;" bindtap="backToList">← 返回</view>
       <view style="font-size: 40rpx; font-weight: 700; color: #f8fafc;">Boss 挑战</view>
     </view>
 
@@ -284,7 +284,7 @@
   <!-- ==================== 战斗结果视图 ==================== -->
   <block wx:elif="{{view === 'result'}}">
 
-    <!-- Boss 信息 + 属性 -->
+    <!-- Boss 信息 + 战斗回合 -->
     <view class="card">
       <view class="card-title">👹 {{resultBoss.name}}</view>
       <view wx:for="{{resultBossAttrList}}" wx:key="key" style="margin-bottom: 8rpx;">
@@ -296,18 +296,17 @@
           <view class="progress-bar-fill" style="width: {{item.pct}}%; background: {{item.color}};"></view>
         </view>
       </view>
-    </view>
 
-    <!-- 战斗回合动画 -->
-    <view class="card">
-      <view class="card-title">⚔️ 战斗过程</view>
-      <view wx:for="{{visibleRounds}}" wx:key="round" class="round-item" style="animation: fadeIn 0.3s ease;">
-        <view class="text-gold" style="font-size: 24rpx; font-weight: 600; margin-bottom: 4rpx;">第{{item.round}}回合</view>
-        <view wx:if="{{item.description}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 4rpx;">{{item.description}}</view>
-        <view wx:if="{{item.userAction}}" style="font-size: 24rpx; color: #64b5f6;">你：{{item.userAction}}</view>
-        <view wx:if="{{item.bossAction}}" style="font-size: 24rpx; color: #e57373;">Boss：{{item.bossAction}}</view>
+      <view style="margin-top:20rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+        <view class="card-title" style="margin-bottom:12rpx">⚔️ 战斗过程</view>
+        <view wx:for="{{visibleRounds}}" wx:key="round" class="round-item" style="animation: fadeIn 0.3s ease;">
+          <view class="text-gold" style="font-size: 24rpx; font-weight: 600; margin-bottom: 4rpx;">第{{item.round}}回合</view>
+          <view wx:if="{{item.description}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 4rpx;">{{item.description}}</view>
+          <view wx:if="{{item.userAction}}" style="font-size: 24rpx; color: #64b5f6;">你：{{item.userAction}}</view>
+          <view wx:if="{{item.bossAction}}" style="font-size: 24rpx; color: #e57373;">Boss：{{item.bossAction}}</view>
+        </view>
+        <view wx:if="{{!roundsComplete}}" class="text-dim" style="font-size: 24rpx; text-align: center; padding: 16rpx;">战斗中...</view>
       </view>
-      <view wx:if="{{!roundsComplete}}" class="text-dim" style="font-size: 24rpx; text-align: center; padding: 16rpx;">战斗中...</view>
     </view>
 
     <!-- 结果展示（回合播完后显示） -->
@@ -318,7 +317,7 @@
         <view style="font-size: 48rpx;">{{resultIsWin ? '⚔️ 胜利' : '💀 败北'}}</view>
       </view>
 
-      <!-- 战斗详情 -->
+      <!-- 战斗详情 + 差距分析 -->
       <view class="card">
         <view class="card-title">📊 战斗详情</view>
         <view class="detail-row">
@@ -349,6 +348,28 @@
           <text class="text-dim">Boss 战力</text>
           <text class="text-red">{{resultDetail.bossPower}}</text>
         </view>
+
+        <!-- 失败时显示差距分析 -->
+        <block wx:if="{{!resultIsWin}}">
+          <view style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+            <view style="font-size:28rpx;font-weight:600;color:#f8fafc;margin-bottom:12rpx">📉 差距分析</view>
+            <view wx:for="{{attrComparison}}" wx:key="key" class="detail-row">
+              <view>
+                <text class="text-dim">{{item.name}}</text>
+                <text style="font-size: 22rpx; margin-left: 8rpx;">你 {{item.userVal}} / Boss {{item.bossVal}}</text>
+              </view>
+              <text style="font-size: 24rpx; color: {{item.diffColor}}; font-weight: 600;">{{item.diffLabel}}</text>
+            </view>
+          </view>
+          <view style="margin-top:16rpx;padding-top:16rpx;border-top:1rpx solid #334155">
+            <view style="font-size:28rpx;font-weight:600;color:#f8fafc;margin-bottom:8rpx">💡 提升建议</view>
+            <view wx:for="{{attrComparison}}" wx:key="key">
+              <view wx:if="{{item.isWeak}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 8rpx;">
+                · {{item.name}}差距 {{item.diffAbs}}，建议多做相关行为提升
+              </view>
+            </view>
+          </view>
+        </block>
       </view>
 
       <!-- 胜利：仪式感卡片 + 奖励 -->
@@ -360,29 +381,6 @@
           <button class="btn btn-primary btn-small" style="margin-top:16rpx" bindtap="goToRewards">
             去兑现奖励 →
           </button>
-        </view>
-      </block>
-
-      <!-- 失败：属性对比 + 差距分析 -->
-      <block wx:else>
-        <view class="card">
-          <view class="card-title">📉 差距分析</view>
-          <view wx:for="{{attrComparison}}" wx:key="key" class="detail-row">
-            <view>
-              <text class="text-dim">{{item.name}}</text>
-              <text style="font-size: 22rpx; margin-left: 8rpx;">你 {{item.userVal}} / Boss {{item.bossVal}}</text>
-            </view>
-            <text style="font-size: 24rpx; color: {{item.diffColor}}; font-weight: 600;">{{item.diffLabel}}</text>
-          </view>
-        </view>
-
-        <view class="card">
-          <view class="card-title">💡 提升建议</view>
-          <view wx:for="{{attrComparison}}" wx:key="key">
-            <view wx:if="{{item.isWeak}}" class="text-dim" style="font-size: 26rpx; margin-bottom: 8rpx;">
-              · {{item.name}}差距 {{item.diffAbs}}，建议多做相关行为提升
-            </view>
-          </view>
         </view>
       </block>
 

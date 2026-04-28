@@ -431,9 +431,9 @@ function initDB() {
     db.prepare('INSERT INTO families (name) VALUES (?)').run('默认家庭');
   }
 
-  // 任务系统 - 系统悬赏任务池 seed
-  const poolCount = db.prepare('SELECT COUNT(*) as count FROM system_quest_pool').get();
-  if (poolCount.count === 0) {
+  // 任务系统 - 系统悬赏任务池 seed（每次启动清空重建，确保与 seed 文件同步）
+  db.prepare('DELETE FROM system_quest_pool').run();
+  {
     const insert = db.prepare(
       'INSERT INTO system_quest_pool (category, title, description, requires_photo, reward_quality) VALUES (?, ?, ?, ?, ?)'
     );
